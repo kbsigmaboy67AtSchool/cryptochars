@@ -1,0 +1,3625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>NiXl Engine // terminal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #000000;
+      --bg2: #030805;
+      --panel: #050a06;
+      --border: #0d2818;
+      --text: #b8f5c8;
+      --muted: #3d7a52;
+      --accent: #00ff66;
+      --accent2: #39ff14;
+      --green: #00ff41;
+      --yellow: #c8ff00;
+      --red: #ff2244;
+      --cyan: #00ffaa;
+      --glow: 0 0 8px rgba(0, 255, 102, 0.45);
+      --mono: 'JetBrains Mono', 'Cascadia Code', ui-monospace, monospace;
+      --sans: 'Ubuntu', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: var(--mono); overflow: hidden;
+    }
+    body::before {
+      content: "";
+      pointer-events: none;
+      position: fixed; inset: 0; z-index: 9998;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 255, 65, 0.015) 2px,
+        rgba(0, 255, 65, 0.015) 4px
+      );
+    }
+    body::after {
+      content: "";
+      pointer-events: none;
+      position: fixed; inset: 0; z-index: 9997;
+      background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%);
+    }
+    
+    /* Warning */
+    #boot {
+      position: fixed; inset: 0; z-index: 10000;
+      background: #000; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 2rem;
+      text-align: center;
+    }
+    #boot h1 {
+      font-size: clamp(1.8rem, 5vw, 3.2rem); font-weight: 700;
+      letter-spacing: -0.03em; color: #fff;
+      text-shadow: 0 0 12px #00ff66, 0 0 40px rgba(0,255,102,0.5); color: #00ff66;
+      margin-bottom: 0.5rem;
+    }
+    #boot .sub { color: var(--muted); margin-bottom: 1.8rem; font-size: 0.95rem; }
+    #boot .warnbox {
+      max-width: 540px; background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1.4rem 1.6rem; text-align: left;
+      line-height: 1.55; font-size: 0.88rem; color: var(--text);
+    }
+    #boot .warnbox strong { color: var(--yellow); }
+    #boot .warnbox code { color: var(--accent); font-size: 0.9em; }
+    #boot button {
+      margin-top: 1.6rem; padding: 0.65rem 2rem; background: transparent;
+      border: 1px solid var(--accent); color: var(--accent); font-family: var(--mono);
+      font-size: 0.9rem; border-radius: 6px; cursor: pointer; transition: 0.15s;
+    }
+    #boot button:hover { background: var(--accent); color: #000; box-shadow: 0 0 24px rgba(103,232,249,0.4); }
+
+    /* App */
+    #app { display: none; height: 100%; flex-direction: column; }
+    #app.on { display: flex; }
+
+    /* Top bar */
+    #topbar {
+      height: 36px; background: var(--bg2); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 0.75rem; gap: 0.75rem;
+      font-size: 0.78rem; user-select: none; flex-shrink: 0;
+    }
+    #topbar .logo { font-weight: 700; color: #fff; letter-spacing: -0.02em; }
+    #topbar .logo span { color: var(--accent); font-weight: 400; margin-left: 0.35rem; }
+    #topbar .cwd { color: var(--muted); margin-left: auto; font-size: 0.72rem; }
+    #topbar button {
+      background: transparent; border: 1px solid transparent; color: var(--muted);
+      font-family: var(--mono); font-size: 0.72rem; padding: 0.2rem 0.55rem;
+      border-radius: 4px; cursor: pointer;
+    }
+    #topbar button:hover, #topbar button.active { color: var(--accent); border-color: var(--border); }
+
+    /* Main split */
+    #main {
+      flex: 1; display: grid; grid-template-columns: 1fr; overflow: hidden;
+    }
+    #main.split { grid-template-columns: 1fr 1fr; }
+    @media (max-width: 900px) {
+      #main.split { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    }
+
+    /* Terminal */
+    #term-wrap {
+      display: flex; flex-direction: column; background: #000;
+      overflow: hidden; border-right: 1px solid var(--border);
+      box-shadow: inset 0 0 80px rgba(0, 40, 20, 0.35);
+    }
+    #term {
+      flex: 1; overflow-y: auto; padding: 0.6rem 0.85rem;
+      font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+      text-shadow: 0 0 4px rgba(0, 255, 102, 0.15);
+    }
+    .tline { margin: 0 0 1px; }
+    .tline .ts { color: #3f3f46; margin-right: 0.45rem; font-size: 0.85em; }
+    .tline.cmd { color: var(--accent); }
+    .tline.out { color: var(--text); }
+    .tline.info { color: var(--muted); }
+    .tline.ok { color: var(--green); }
+    .tline.warn { color: var(--yellow); }
+    .tline.err { color: var(--red); }
+    .tline.sys { color: var(--accent2); }
+
+    #input-row {
+      display: flex; align-items: center; padding: 0.45rem 0.85rem;
+      border-top: 1px solid #0a1f12; background: #020402; flex-shrink: 0;
+      box-shadow: 0 -4px 24px rgba(0, 255, 102, 0.04);
+    }
+    #prompt {
+      color: var(--accent); margin-right: 0.5rem; white-space: nowrap; user-select: none;
+      text-shadow: var(--glow); font-weight: 700;
+    }
+    #cmd {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--green); font-family: var(--mono); font-size: 13px;
+      caret-color: var(--accent); text-shadow: 0 0 6px rgba(0,255,65,0.25);
+    }
+
+    /* Monaco editor pane */
+    #editor-pane {
+      display: none; flex-direction: column; background: var(--panel); overflow: hidden;
+    }
+    #main.split #editor-pane { display: flex; }
+    #editor-bar {
+      height: 32px; background: var(--bg2); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 0.6rem; gap: 0.4rem;
+      font-size: 0.72rem; color: var(--muted); flex-shrink: 0;
+    }
+    #editor-bar button {
+      background: transparent; border: 1px solid var(--border); color: var(--text);
+      font-family: var(--mono); font-size: 0.7rem; padding: 0.15rem 0.5rem;
+      border-radius: 3px; cursor: pointer;
+    }
+    #editor-bar button:hover { border-color: var(--accent); color: var(--accent); }
+    #editor-bar .path { margin-left: auto; color: var(--muted); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #monaco { flex: 1; width: 100%; }
+
+    /* Preview */
+    #preview-pane {
+      display: none; flex-direction: column; background: #111; overflow: hidden;
+      position: absolute; inset: 36px 0 0 0; z-index: 50;
+    }
+    #preview-pane.on { display: flex; }
+    #preview-bar {
+      height: 32px; background: var(--bg2); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 0.6rem; gap: 0.5rem; font-size: 0.72rem;
+    }
+    #preview-bar button {
+      background: transparent; border: 1px solid var(--border); color: var(--text);
+      font-family: var(--mono); font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 3px; cursor: pointer;
+    }
+    #preview-frame { flex: 1; border: none; width: 100%; background: #0a0a0a; }
+
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div id="boot">
+  <h1>NiXl Engine</h1>
+  <div class="sub">by Xclounkit234X &nbsp;·&nbsp; pure terminal + Monaco + real AES</div>
+  <div class="warnbox">
+    <p><strong>⚠ PRE-WARNING</strong></p>
+    <p style="margin-top:0.6rem">
+      This is a full browser terminal. Code has access to everything the browser allows:
+      <code>IndexedDB</code>, Web Crypto (real AES-GCM), <code>fetch</code>, workers, canvas, etc.
+    </p>
+    <p style="margin-top:0.5rem">
+      Every command, error, log and side-effect is printed here. Files + history + encryption keys
+      (when you set them) live in IndexedDB and survive reloads.
+    </p>
+    <p style="margin-top:0.5rem; color:var(--muted); font-size:0.82rem">
+      No real Linux kernel / bash / Python runtime exists. Commands are high-fidelity simulations
+      adapted for the browser + IndexedDB filesystem. AES is real (Web Crypto API).
+    </p>
+  </div>
+  <button id="enter">I understand — boot NiXl</button>
+</div>
+
+<div id="app">
+  <div id="topbar">
+    <div class="logo">NiXl <span>v2 // terminal</span></div>
+    <button id="btn-editor" title="Toggle Monaco editor">editor</button>
+    <button id="btn-preview" title="Toggle HTML preview">preview</button>
+    <button id="btn-clear">clear</button>
+    <div class="cwd" id="cwd-display">~</div>
+  </div>
+
+  <div id="main">
+    <div id="term-wrap">
+      <div id="term"></div>
+      <div id="input-row">
+        <span id="prompt">nixl@root:~#</span>
+        <input id="cmd" autocomplete="off" spellcheck="false" autofocus />
+      </div>
+    </div>
+    <div id="editor-pane">
+      <div id="editor-bar">
+        <button id="ed-save">save</button>
+        <button id="ed-run">run</button>
+        <button id="ed-close">close</button>
+        <span class="path" id="ed-path">unsaved</span>
+      </div>
+      <div id="monaco"></div>
+    </div>
+  </div>
+
+  <div id="preview-pane">
+    <div id="preview-bar">
+      <button id="prev-close">close preview</button>
+      <span style="color:var(--muted); margin-left:0.5rem" id="prev-title">preview</span>
+    </div>
+    <iframe id="preview-frame" sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups allow-downloads"></iframe>
+  </div>
+</div>
+
+<!-- Monaco -->
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+
+<script>
+/* ============================================================
+   NiXl Engine v2 — pure terminal, Monaco, real AES, IndexedDB FS
+   ============================================================ */
+
+const $ = s => document.querySelector(s);
+const termEl = $('#term');
+const cmdEl = $('#cmd');
+const promptEl = $('#prompt');
+const cwdDisplay = $('#cwd-display');
+
+let db = null;
+let cwd = '/home/nixl';
+let history = [];
+let histIdx = -1;
+let monacoEditor = null;
+let currentEditPath = null;
+let aesKey = null;          // CryptoKey
+let aesKeyRaw = null;       // for export/display
+
+/* ---------- IndexedDB ---------- */
+const DB = 'NiXlEngineV2';
+const STORE_FS = 'fs';
+const STORE_META = 'meta';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const r = indexedDB.open(DB, 2);
+    r.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(STORE_FS)) d.createObjectStore(STORE_FS, { keyPath: 'path' });
+      if (!d.objectStoreNames.contains(STORE_META)) d.createObjectStore(STORE_META, { keyPath: 'key' });
+    };
+    r.onsuccess = e => { db = e.target.result; resolve(db); };
+    r.onerror = e => reject(e.target.error);
+  });
+}
+
+function tx(store, mode = 'readonly') {
+  return db.transaction(store, mode).objectStore(store);
+}
+
+async function metaGet(key) {
+  return new Promise((res, rej) => {
+    const r = tx(STORE_META).get(key);
+    r.onsuccess = () => res(r.result ? r.result.value : null);
+    r.onerror = e => rej(e.target.error);
+  });
+}
+async function metaSet(key, value) {
+  return new Promise((res, rej) => {
+    const t = tx(STORE_META, 'readwrite');
+    t.put({ key, value });
+    t.transaction.oncomplete = () => res();
+    t.transaction.onerror = e => rej(e.target.error);
+  });
+}
+
+async function fsWrite(path, content, meta = {}) {
+  path = norm(path);
+  return new Promise((res, rej) => {
+    const t = tx(STORE_FS, 'readwrite');
+    t.put({ path, content, type: meta.type || 'file', mtime: Date.now(), mode: meta.mode || '644', ...meta });
+    t.transaction.oncomplete = () => res();
+    t.transaction.onerror = e => rej(e.target.error);
+  });
+}
+async function fsRead(path) {
+  path = norm(path);
+  return new Promise((res, rej) => {
+    const r = tx(STORE_FS).get(path);
+    r.onsuccess = () => res(r.result || null);
+    r.onerror = e => rej(e.target.error);
+  });
+}
+async function fsRm(path) {
+  path = norm(path);
+  return new Promise((res, rej) => {
+    const t = tx(STORE_FS, 'readwrite');
+    t.delete(path);
+    // cascade children
+    const all = tx(STORE_FS).getAll();
+    all.onsuccess = () => {
+      const prefix = path.endsWith('/') ? path : path + '/';
+      (all.result || []).forEach(f => {
+        if (f.path.startsWith(prefix)) tx(STORE_FS, 'readwrite').delete(f.path);
+      });
+    };
+    t.transaction.oncomplete = () => res();
+    t.transaction.onerror = e => rej(e.target.error);
+  });
+}
+async function fsAll() {
+  return new Promise((res, rej) => {
+    const r = tx(STORE_FS).getAll();
+    r.onsuccess = () => res(r.result || []);
+    r.onerror = e => rej(e.target.error);
+  });
+}
+async function fsList(dir) {
+  dir = norm(dir);
+  if (!dir.endsWith('/')) dir += '/';
+  if (dir === '//') dir = '/';
+  const all = await fsAll();
+  const map = new Map();
+  for (const f of all) {
+    if (!f.path.startsWith(dir) && dir !== '/') continue;
+    let rel = dir === '/' ? f.path.slice(1) : f.path.slice(dir.length);
+    if (!rel) continue;
+    const i = rel.indexOf('/');
+    if (i === -1) {
+      map.set(rel, { name: rel, path: f.path, type: f.type || 'file', mode: f.mode, mtime: f.mtime, size: (f.content || '').length });
+    } else {
+      const name = rel.slice(0, i);
+      if (!map.has(name)) map.set(name, { name, path: dir + name, type: 'dir', mode: '755' });
+    }
+  }
+  return [...map.values()].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function norm(p) {
+  if (!p || p === '.') return cwd;
+  if (p === '~') return '/home/nixl';
+  if (p.startsWith('~/')) p = '/home/nixl/' + p.slice(2);
+  if (!p.startsWith('/')) p = (cwd.endsWith('/') ? cwd : cwd + '/') + p;
+  const parts = p.split('/').filter(Boolean);
+  const stack = [];
+  for (const part of parts) {
+    if (part === '..') stack.pop();
+    else if (part !== '.') stack.push(part);
+  }
+  return '/' + stack.join('/');
+}
+
+/* ---------- Terminal output ---------- */
+function ts() {
+  return new Date().toLocaleTimeString('en-GB', { hour12: false });
+}
+let lastOutput = '';
+let lastOutputs = []; // recent non-cmd lines
+let copyNext = false; // set by --copy flag
+
+function trackOutput(text, cls) {
+  if (cls === 'cmd') return;
+  const s = String(text);
+  lastOutput = s;
+  lastOutputs.push({ text: s, cls, t: Date.now() });
+  if (lastOutputs.length > 200) lastOutputs.shift();
+}
+
+async function copyToClipboard(str, label) {
+  const data = String(str ?? '');
+  if (!data) {
+    print('copy: nothing to copy', 'warn');
+    return false;
+  }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(data);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = data;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    print(`copied ${label || 'text'} (${data.length} chars) → clipboard`, 'ok');
+    return true;
+  } catch (e) {
+    print('copy failed: ' + e.message, 'err');
+    return false;
+  }
+}
+
+function print(text, cls = 'out') {
+  const d = document.createElement('div');
+  d.className = 'tline ' + cls;
+  d.innerHTML = `<span class="ts">${ts()}</span>${esc(String(text))}`;
+  termEl.appendChild(d);
+  termEl.scrollTop = termEl.scrollHeight;
+  trackOutput(text, cls);
+  if (copyNext && cls !== 'cmd' && cls !== 'info' && cls !== 'sys') {
+    copyNext = false;
+    copyToClipboard(text, 'output');
+  }
+}
+function printHtml(html, cls = 'out') {
+  const d = document.createElement('div');
+  d.className = 'tline ' + cls;
+  d.innerHTML = `<span class="ts">${ts()}</span>${html}`;
+  termEl.appendChild(d);
+  termEl.scrollTop = termEl.scrollHeight;
+  // strip tags for clipboard tracking
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  trackOutput(tmp.textContent || '', cls);
+}
+
+/** Resolve text arg: @path or --file path reads FS; else literal */
+async function resolveTextArg(text) {
+  if (text == null) return '';
+  let t = String(text).trim();
+  // --file path at start
+  const fm = t.match(/^--file\s+(\S+)\s*([\s\S]*)$/i);
+  if (fm) {
+    const f = await fsRead(fm[1]);
+    if (!f) throw new Error('file not found: ' + fm[1]);
+    return f.content || '';
+  }
+  if (t.startsWith('@')) {
+    const path = t.slice(1).split(/\s/)[0];
+    const f = await fsRead(path);
+    if (!f) throw new Error('file not found: ' + path);
+    return f.content || '';
+  }
+  // trailing --file path
+  const fm2 = t.match(/^([\s\S]*?)\s+--file\s+(\S+)\s*$/i);
+  if (fm2) {
+    const f = await fsRead(fm2[2]);
+    if (!f) throw new Error('file not found: ' + fm2[2]);
+    return f.content || '';
+  }
+  return t;
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function updatePrompt() {
+  const short = cwd.replace(/^\/home\/nixl/, '~');
+  promptEl.textContent = `nixl@root:${short}#`;
+  cwdDisplay.textContent = short;
+}
+
+/* console hijack */
+const _c = { log: console.log, warn: console.warn, error: console.error, info: console.info };
+['log','warn','error','info'].forEach(k => {
+  console[k] = (...a) => {
+    _c[k](...a);
+    const msg = a.map(x => typeof x === 'object' ? (()=>{try{return JSON.stringify(x)}catch{return String(x)}})() : String(x)).join(' ');
+    print(msg, k === 'error' ? 'err' : k === 'warn' ? 'warn' : 'out');
+  };
+});
+window.addEventListener('error', e => print(`Uncaught: ${e.message} @ ${e.filename}:${e.lineno}`, 'err'));
+window.addEventListener('unhandledrejection', e => print(`Rejection: ${e.reason}`, 'err'));
+
+/* ---------- Real AES-GCM (Web Crypto) ---------- */
+async function aesGenerate() {
+  aesKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+  const raw = await crypto.subtle.exportKey('raw', aesKey);
+  aesKeyRaw = btoa(String.fromCharCode(...new Uint8Array(raw)));
+  await metaSet('aesKeyRaw', aesKeyRaw);
+  return aesKeyRaw;
+}
+async function aesImport(b64) {
+  const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  aesKey = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+  aesKeyRaw = b64;
+  await metaSet('aesKeyRaw', b64);
+}
+async function aesEncrypt(plaintext) {
+  if (!aesKey) throw new Error('No AES key. Run: aes-gen  or  aes-import <b64>');
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder().encode(plaintext);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, enc);
+  const buf = new Uint8Array(iv.byteLength + ct.byteLength);
+  buf.set(iv, 0);
+  buf.set(new Uint8Array(ct), iv.byteLength);
+  return btoa(String.fromCharCode(...buf));
+}
+async function aesDecrypt(b64) {
+  if (!aesKey) throw new Error('No AES key. Run: aes-gen  or  aes-import <b64>');
+  const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const iv = buf.slice(0, 12);
+  const ct = buf.slice(12);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ct);
+  return new TextDecoder().decode(pt);
+}
+
+/* ---------- WSS cross-terminal (AES-256-GCM over relay) ---------- */
+const WSS_DEFAULT_RELAY = 'wss://nixl-relay.example.workers.dev'; // user sets real worker URL
+let wss = {
+  socket: null,
+  url: null,
+  room: null,
+  selfId: null,
+  peers: new Set(),
+  encrypt: true,       // AES-GCM payloads when key present
+  presence: true,
+  echo: false,
+  relayBase: null,     // e.g. wss://my-worker.workers.dev
+  reconnect: false,
+  lastErr: null,
+};
+
+async function wssLoadPrefs() {
+  const base = await metaGet('wssRelay');
+  if (base) wss.relayBase = base;
+  const enc = await metaGet('wssEncrypt');
+  if (enc === true || enc === false) wss.encrypt = enc;
+  const room = await metaGet('wssRoom');
+  if (room) wss.room = room;
+}
+async function wssSavePrefs() {
+  if (wss.relayBase) await metaSet('wssRelay', wss.relayBase);
+  await metaSet('wssEncrypt', !!wss.encrypt);
+  if (wss.room) await metaSet('wssRoom', wss.room);
+}
+
+function wssBuildUrl(room, base) {
+  const b = (base || wss.relayBase || WSS_DEFAULT_RELAY).replace(/\/$/, '');
+  const r = (room || wss.room || 'nixl').replace(/^\/+/, '');
+  // if user passed full wss://.../room already
+  if (/^wss?:\/\//i.test(room || '')) return room;
+  const u = new URL(b.includes('://') ? b : 'wss://' + b);
+  // path = room
+  if (!u.pathname || u.pathname === '/') u.pathname = '/' + r;
+  else if (room) u.pathname = '/' + r;
+  const qs = new URLSearchParams();
+  if (wss.presence) qs.set('presence', '1');
+  if (wss.echo) qs.set('echo', '1');
+  u.search = qs.toString();
+  return u.toString();
+}
+
+function wssStatusLine() {
+  const st = wss.socket
+    ? (wss.socket.readyState === 1 ? 'connected' : wss.socket.readyState === 0 ? 'connecting' : 'closed')
+    : 'offline';
+  const enc = wss.encrypt && aesKey ? 'AES-256-GCM' : (wss.encrypt ? 'encrypt-ON (no key!)' : 'plaintext');
+  return `WSS ${st}  room=${wss.room || '-'}  id=${wss.selfId || '-'}  peers=${wss.peers.size}  ${enc}`;
+}
+
+async function wssConnect(urlOrRoom, maybeRoom) {
+  let url;
+  if (urlOrRoom && /^wss?:\/\//i.test(urlOrRoom)) {
+    url = urlOrRoom;
+    // extract room from path
+    try {
+      const u = new URL(url);
+      wss.room = (u.pathname.replace(/^\/+/, '') || 'default');
+      wss.relayBase = u.origin.replace(/^http/, 'ws');
+    } catch (_) {}
+    if (maybeRoom) wss.room = maybeRoom;
+  } else {
+    const room = urlOrRoom || wss.room || 'nixl';
+    wss.room = room;
+    url = wssBuildUrl(room);
+  }
+
+  if (wss.socket) {
+    try { wss.socket.close(); } catch (_) {}
+    wss.socket = null;
+  }
+
+  print(`WSS connecting → ${url}`, 'info');
+  await wssSavePrefs();
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let ws;
+    try {
+      ws = new WebSocket(url);
+    } catch (e) {
+      print(`WSS open failed: ${e.message}`, 'err');
+      reject(e);
+      return;
+    }
+    wss.socket = ws;
+    wss.url = url;
+    wss.peers = new Set();
+    wss.selfId = null;
+    wss.lastErr = null;
+
+    ws.binaryType = 'arraybuffer';
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        print('WSS connect timeout', 'err');
+        try { ws.close(); } catch (_) {}
+        reject(new Error('timeout'));
+      }
+    }, 15000);
+
+    ws.addEventListener('open', () => {
+      print(`WSS open  ${wssStatusLine()}`, 'ok');
+      // wait for _hello for full resolve, but open is enough
+    });
+
+    ws.addEventListener('message', async (ev) => {
+      try {
+        await wssOnMessage(ev.data);
+      } catch (e) {
+        print(`WSS msg error: ${e.message}`, 'err');
+      }
+      if (!settled && wss.selfId) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(true);
+      }
+    });
+
+    ws.addEventListener('close', (ev) => {
+      print(`WSS closed (code ${ev.code}${ev.reason ? ': ' + ev.reason : ''})`, 'warn');
+      wss.socket = null;
+      wss.selfId = null;
+      wss.peers.clear();
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        reject(new Error('closed before hello'));
+      }
+    });
+
+    ws.addEventListener('error', () => {
+      wss.lastErr = 'socket error';
+      print('WSS error (check relay URL / mixed content / CORS)', 'err');
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        reject(new Error('socket error'));
+      }
+    });
+  }).catch((e) => {
+    // soft fail already printed
+    return false;
+  });
+}
+
+function wssDisconnect() {
+  if (!wss.socket) {
+    print('WSS already offline', 'info');
+    return;
+  }
+  try { wss.socket.close(1000, 'bye'); } catch (_) {}
+  wss.socket = null;
+  wss.selfId = null;
+  wss.peers.clear();
+  print('WSS disconnected', 'ok');
+}
+
+async function wssOnMessage(data) {
+  let text;
+  if (typeof data === 'string') text = data;
+  else if (data instanceof ArrayBuffer) text = new TextDecoder().decode(data);
+  else if (data instanceof Blob) text = await data.text();
+  else text = String(data);
+
+  let msg;
+  try { msg = JSON.parse(text); } catch {
+    print(`[wss raw] ${text.slice(0, 500)}`, 'out');
+    return;
+  }
+
+  // relay control frames
+  if (msg.t === '_hello') {
+    wss.selfId = msg.id;
+    print(`WSS hello  id=${msg.id}  peers≈${msg.n}`, 'sys');
+    print(wssStatusLine(), 'info');
+    return;
+  }
+  if (msg.t === '_join') {
+    if (msg.id) wss.peers.add(msg.id);
+    print(`WSS peer join  ${msg.id}  (n=${msg.n})`, 'sys');
+    return;
+  }
+  if (msg.t === '_leave') {
+    if (msg.id) wss.peers.delete(msg.id);
+    print(`WSS peer leave  ${msg.id}  (n=${msg.n})`, 'sys');
+    return;
+  }
+
+  // encrypted envelope { t: 'e', d: '<b64>' }
+  if (msg.t === 'e' && msg.d) {
+    if (!aesKey) {
+      print(`[wss encrypted] (no local AES key — run aes-import / aes-gen)`, 'warn');
+      return;
+    }
+    try {
+      const pt = await aesDecrypt(msg.d);
+      let inner;
+      try { inner = JSON.parse(pt); } catch { inner = { text: pt }; }
+      const from = inner.from || msg.from || '?';
+      const body = inner.text ?? inner.msg ?? pt;
+      print(`[wss ${from}] ${body}`, 'ok');
+      if (inner.from) wss.peers.add(inner.from);
+    } catch (e) {
+      print(`[wss] decrypt failed: ${e.message} (wrong key?)`, 'err');
+    }
+    return;
+  }
+
+  // plaintext chat { t: 'msg', from, text }
+  if (msg.t === 'msg' || msg.text != null || msg.msg != null) {
+    const from = msg.from || '?';
+    const body = msg.text ?? msg.msg ?? '';
+    print(`[wss ${from}] ${body}`, 'out');
+    if (msg.from) wss.peers.add(msg.from);
+    return;
+  }
+
+  print(`[wss] ${JSON.stringify(msg).slice(0, 400)}`, 'out');
+}
+
+async function wssSend(text) {
+  if (!wss.socket || wss.socket.readyState !== 1) {
+    throw new Error('not connected — wss connect <room|url>');
+  }
+  const payload = {
+    t: 'msg',
+    from: wss.selfId || 'anon',
+    text: String(text),
+    ts: Date.now(),
+  };
+
+  let out;
+  if (wss.encrypt) {
+    if (!aesKey) throw new Error('encrypt is ON but no AES key — aes-gen or aes-import, or: wss encrypt off');
+    const ct = await aesEncrypt(JSON.stringify(payload));
+    out = JSON.stringify({ t: 'e', d: ct, from: wss.selfId || 'anon' });
+  } else {
+    out = JSON.stringify(payload);
+  }
+
+  wss.socket.send(out);
+  print(`[wss you] ${text}`, 'cmd');
+}
+
+/* ---------- Command parser (simple shell-like) ---------- */
+function parseLine(line) {
+  // basic: respect double quotes, no complex pipes yet
+  const tokens = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; continue; }
+    if (!inQ && /\s/.test(c)) {
+      if (cur) tokens.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  if (cur) tokens.push(cur);
+  return tokens;
+}
+
+/* ---------- Commands ---------- */
+const cmds = {};
+
+cmds.help = async () => {
+  printHtml(`<span style="color:var(--accent)">NiXl Engine — command reference</span>
+
+<span style="color:var(--cyan)">Filesystem</span>
+  ls [-l] [path]          list directory
+  cd [path]               change directory
+  pwd                     print working directory
+  cat &lt;file&gt;              print file
+  head / tail [-n N] &lt;file&gt;
+  echo …  &gt; file / &gt;&gt; file
+  touch / mkdir [-p] / rm [-rf]
+  cp / mv / rename
+  find / tree / stat / du / df
+  upload / import         pick local files → virtual FS
+  download &lt;path&gt;         save FS file to disk
+  write &lt;path&gt; &lt;text&gt;     overwrite file
+  append &lt;path&gt; &lt;text&gt;    append to file
+  read &lt;path&gt;             alias for cat
+  wc &lt;path&gt;               line/word/byte counts
+  grep &lt;pat&gt; &lt;path&gt;       search file lines
+  export-fs / import-fs   whole FS JSON backup
+
+<span style="color:var(--cyan)">Clipboard</span>
+  copy                    copy last output
+  copy last / prev        same
+  copy file &lt;path&gt;        copy file contents
+  copy all                copy recent outputs
+  --copy                  flag: copy next main output of a command
+  cipher … --copy         works on cipher results too
+
+<span style="color:var(--cyan)">Edit / run</span>
+  edit &lt;file&gt;             open in Monaco
+  nano &lt;file&gt;             alias for edit
+  run &lt;file.js|.html&gt;     execute JS or open HTML preview
+  js &lt;code&gt;               eval JavaScript
+  node &lt;file.js&gt;          same as run for .js
+  python / py             tiny simulated Python REPL (expr only)
+  html &lt;file&gt;             open HTML in preview
+  calc / calculator       open visual calc, or: calc <expr>
+  calc 2**100*sin(pi/4)   unlimited terminal math (Python-style)
+  minecraft / mc          HTML Minecraft builds (list/download/play/edit)
+
+<span style="color:var(--cyan)">AES-GCM (real Web Crypto) — military-grade</span>
+  aes-gen                 generate 256-bit key (saved)
+  aes-import &lt;b64&gt;        import existing key
+  aes-key                 show current key (base64)
+  aes-enc / aes-dec       encrypt/decrypt text
+  aes-encfile / aes-decfile
+
+<span style="color:var(--cyan)">Cipherlab</span>
+  cipher / cipherlab      full crypto toolkit (see: cipher help)
+  ph4nt0m enc|dec …       invisible zero-width stego + AES-256-GCM
+  caesar / rot13 / xor / b64 / hex / binary / morse / …
+
+<span style="color:var(--cyan)">Network / WSS (cross-terminal)</span>
+  wss / net               encrypted WebSocket chat (see: wss help)
+  wss connect [url] [room]  join a room on the relay
+  wss send / say &lt;msg&gt;    broadcast (AES-256-GCM if encrypt on)
+  wss disconnect          close socket
+  wss status / room / relay / encrypt / peers
+  curl / fetch &lt;url&gt;      HTTP GET
+  wget &lt;url&gt; [file]       download into FS
+  clear / cls
+  history
+  date
+  whoami
+  uname [-a]
+  env
+  export KEY=VAL
+  source &lt;file&gt;
+  help [cmd]
+
+<span style="color:var(--cyan)">Custom commands</span>
+  cmd-guide               full guide to writing your own commands
+  cmd-add &lt;name&gt;          interactive / from editor buffer
+  cmd-set &lt;name&gt; &lt;js&gt;     set body from one line / rest of line
+  cmd-load &lt;name&gt; &lt;url&gt;   load JS body from URL (any scheme)
+  cmd-reload &lt;name&gt;       re-fetch from saved URL
+  cmd-help &lt;name&gt;         show help for a custom command
+  cmd-list                list all custom commands
+  cmd-rm &lt;name&gt;           remove a custom command
+  cmd-export / cmd-import backup/restore custom cmds as JSON
+  &lt;name&gt; --help           same as cmd-help &lt;name&gt;
+
+Custom commands are saved in IndexedDB and survive reloads.
+Type cmd-guide for the full authoring guide.
+
+Everything is logged. Files + AES key + history + custom cmds live in IndexedDB.`, 'info');
+};
+
+cmds.clear = cmds.cls = async () => { termEl.innerHTML = ''; };
+cmds.pwd = async () => print(cwd, 'ok');
+cmds.whoami = async () => print('nixl', 'out');
+cmds.date = async () => print(new Date().toString(), 'out');
+cmds.uname = async (args) => {
+  if (args.includes('-a')) print('NiXl 2.0 browser x86_64 WebCrypto IndexedDB Monaco', 'out');
+  else print('NiXl', 'out');
+};
+cmds.env = async () => {
+  const env = await metaGet('env') || { HOME: '/home/nixl', USER: 'nixl', SHELL: '/bin/nixl', PATH: '/bin:/usr/bin' };
+  Object.entries(env).forEach(([k,v]) => print(`${k}=${v}`, 'out'));
+};
+cmds.export = async (args) => {
+  if (!args[0] || !args[0].includes('=')) { print('usage: export KEY=VAL', 'err'); return; }
+  const [k, ...rest] = args[0].split('=');
+  const env = (await metaGet('env')) || {};
+  env[k] = rest.join('=');
+  await metaSet('env', env);
+  print(`export ${k}`, 'ok');
+};
+
+cmds.cd = async (args) => {
+  const target = args[0] ? norm(args[0]) : '/home/nixl';
+  // allow any path; dirs are implicit
+  cwd = target === '/' ? '/' : target.replace(/\/$/, '') || '/';
+  updatePrompt();
+  await metaSet('cwd', cwd);
+};
+cmds.ls = async (args) => {
+  let long = false, path = cwd;
+  for (const a of args) {
+    if (a === '-l' || a === '-la' || a === '-al') long = true;
+    else if (!a.startsWith('-')) path = a;
+  }
+  const list = await fsList(path);
+  if (!list.length) { print('(empty)', 'info'); return; }
+  if (!long) {
+    print(list.map(i => i.type === 'dir' ? i.name + '/' : i.name).join('  '), 'out');
+  } else {
+    for (const i of list) {
+      const mode = i.type === 'dir' ? 'drwxr-xr-x' : ('-rw-r--r--');
+      const size = String(i.size || 0).padStart(8);
+      const t = i.mtime ? new Date(i.mtime).toISOString().slice(0,16).replace('T',' ') : '            ';
+      print(`${mode} 1 nixl nixl ${size} ${t} ${i.name}${i.type==='dir'?'/':''}`, 'out');
+    }
+  }
+};
+cmds.cat = async (args) => {
+  if (!args[0]) return print('cat: missing operand', 'err');
+  const f = await fsRead(args[0]);
+  if (!f) return print(`cat: ${args[0]}: No such file`, 'err');
+  print(f.content ?? '', 'out');
+};
+cmds.head = async (args) => {
+  let n = 10, file = null;
+  for (let i=0;i<args.length;i++) {
+    if (args[i]==='-n') n = parseInt(args[++i],10)||10;
+    else file = args[i];
+  }
+  if (!file) return print('head: missing file', 'err');
+  const f = await fsRead(file);
+  if (!f) return print(`head: ${file}: No such file`, 'err');
+  print((f.content||'').split('\n').slice(0,n).join('\n'), 'out');
+};
+cmds.tail = async (args) => {
+  let n = 10, file = null;
+  for (let i=0;i<args.length;i++) {
+    if (args[i]==='-n') n = parseInt(args[++i],10)||10;
+    else file = args[i];
+  }
+  if (!file) return print('tail: missing file', 'err');
+  const f = await fsRead(file);
+  if (!f) return print(`tail: ${file}: No such file`, 'err');
+  const lines = (f.content||'').split('\n');
+  print(lines.slice(-n).join('\n'), 'out');
+};
+cmds.echo = async (args, raw) => {
+  // support > and >> redirection in the original line
+  const redir = raw.match(/^(.*?)\s*(>>|>)\s*(\S+)\s*$/);
+  if (redir) {
+    const text = redir[1].replace(/^echo\s+/, '').replace(/^"|"$/g,'');
+    const op = redir[2];
+    const dest = redir[3];
+    let content = text;
+    if (op === '>>') {
+      const existing = await fsRead(dest);
+      content = (existing?.content || '') + text + '\n';
+    } else content = text + '\n';
+    await fsWrite(dest, content);
+    print(`wrote ${norm(dest)}`, 'ok');
+    return;
+  }
+  const noNewline = args[0] === '-n';
+  const parts = noNewline ? args.slice(1) : args;
+  print(parts.join(' ') + (noNewline ? '' : ''), 'out');
+};
+cmds.touch = async (args) => {
+  if (!args.length) return print('touch: missing file', 'err');
+  for (const a of args) {
+    const p = norm(a);
+    const exist = await fsRead(p);
+    if (exist) {
+      exist.mtime = Date.now();
+      await fsWrite(p, exist.content, exist);
+    } else await fsWrite(p, '');
+  }
+};
+cmds.mkdir = async (args) => {
+  const parents = args.includes('-p');
+  const dirs = args.filter(a => a !== '-p');
+  if (!dirs.length) return print('mkdir: missing operand', 'err');
+  for (const d of dirs) {
+    const p = norm(d);
+    // create marker
+    await fsWrite(p + '/.dir', '', { type: 'dir' });
+    if (parents) {
+      const parts = p.split('/').filter(Boolean);
+      let cur = '';
+      for (const part of parts) {
+        cur += '/' + part;
+        await fsWrite(cur + '/.dir', '', { type: 'dir' });
+      }
+    }
+    print(`mkdir: created ${p}`, 'ok');
+  }
+};
+cmds.rm = async (args) => {
+  const force = args.includes('-f') || args.includes('-rf') || args.includes('-fr');
+  const recursive = args.includes('-r') || args.includes('-rf') || args.includes('-fr');
+  const paths = args.filter(a => !a.startsWith('-'));
+  if (!paths.length) return print('rm: missing operand', 'err');
+  for (const p of paths) {
+    const full = norm(p);
+    const f = await fsRead(full);
+    if (!f && !force) { print(`rm: cannot remove '${p}': No such file`, 'err'); continue; }
+    await fsRm(full);
+    print(`removed ${full}`, 'ok');
+  }
+};
+cmds.cp = async (args) => {
+  if (args.length < 2) return print('cp: missing operand', 'err');
+  const src = await fsRead(args[0]);
+  if (!src) return print(`cp: ${args[0]}: No such file`, 'err');
+  await fsWrite(args[1], src.content, src);
+  print(`copied → ${norm(args[1])}`, 'ok');
+};
+cmds.mv = cmds.rename = async (args) => {
+  if (args.length < 2) return print('mv: missing operand', 'err');
+  const src = await fsRead(args[0]);
+  if (!src) return print(`mv: ${args[0]}: No such file`, 'err');
+  await fsWrite(args[1], src.content, src);
+  await fsRm(args[0]);
+  print(`moved → ${norm(args[1])}`, 'ok');
+};
+
+cmds.upload = cmds.import = async (args) => {
+  const destDir = args[0] ? norm(args[0]) : cwd;
+  return new Promise((resolve) => {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.multiple = true;
+    inp.onchange = async () => {
+      const files = [...(inp.files || [])];
+      if (!files.length) { print('upload cancelled', 'info'); resolve(); return; }
+      for (const file of files) {
+        try {
+          const text = await file.text();
+          const dest = norm(destDir.replace(/\/?$/, '/') + file.name);
+          await fsWrite(dest, text);
+          print(`uploaded ${file.name} → ${dest} (${text.length} bytes)`, 'ok');
+        } catch (e) {
+          print(`upload ${file.name}: ${e.message}`, 'err');
+        }
+      }
+      resolve();
+    };
+    inp.click();
+  });
+};
+
+cmds.download = async (args) => {
+  if (!args[0]) return print('usage: download <path> [filename]', 'err');
+  const f = await fsRead(args[0]);
+  if (!f) return print('download: no such file', 'err');
+  const name = args[1] || args[0].split('/').pop() || 'download.txt';
+  const blob = new Blob([f.content || ''], { type: 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  print(`download started: ${name} (${(f.content || '').length} bytes)`, 'ok');
+};
+
+cmds.write = async (args, raw) => {
+  if (args.length < 1) return print('usage: write <path> <text…>', 'err');
+  const path = args[0];
+  const m = raw.match(/^write\s+(\S+)\s+([\s\S]+)$/i);
+  const body = m ? m[2] : args.slice(1).join(' ');
+  await fsWrite(path, body);
+  print(`wrote ${norm(path)} (${body.length} bytes)`, 'ok');
+};
+
+cmds.append = async (args, raw) => {
+  if (args.length < 1) return print('usage: append <path> <text…>', 'err');
+  const path = args[0];
+  const m = raw.match(/^append\s+(\S+)\s+([\s\S]+)$/i);
+  const body = m ? m[2] : args.slice(1).join(' ');
+  const existing = await fsRead(path);
+  const next = (existing?.content || '') + body;
+  await fsWrite(path, next);
+  print(`appended → ${norm(path)} (now ${next.length} bytes)`, 'ok');
+};
+
+cmds.read = async (args) => cmds.cat(args);
+
+cmds.wc = async (args) => {
+  if (!args[0]) return print('usage: wc <path>', 'err');
+  const f = await fsRead(args[0]);
+  if (!f) return print('wc: no such file', 'err');
+  const c = f.content || '';
+  const lines = c.length ? c.split('\n').length : 0;
+  const words = c.trim() ? c.trim().split(/\s+/).length : 0;
+  print(`${String(lines).padStart(8)} ${String(words).padStart(8)} ${String(c.length).padStart(8)} ${norm(args[0])}`, 'ok');
+};
+
+cmds.grep = async (args) => {
+  if (args.length < 2) return print('usage: grep <pattern> <path>', 'err');
+  const pat = args[0];
+  const f = await fsRead(args[1]);
+  if (!f) return print('grep: no such file', 'err');
+  let re;
+  try { re = new RegExp(pat, 'i'); } catch { re = null; }
+  const lines = (f.content || '').split('\n');
+  let n = 0;
+  lines.forEach((line, i) => {
+    const hit = re ? re.test(line) : line.toLowerCase().includes(pat.toLowerCase());
+    if (hit) { print(`${i + 1}: ${line}`, 'out'); n++; }
+  });
+  if (!n) print('(no matches)', 'info');
+};
+
+cmds['export-fs'] = async () => {
+  const all = await fsAll();
+  const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'nixl-fs-export.json';
+  a.click();
+  print(`exported ${all.length} FS entries`, 'ok');
+};
+
+cmds['import-fs'] = async (args) => {
+  if (args[0]) {
+    const f = await fsRead(args[0]);
+    if (!f) return print('import-fs: file not found', 'err');
+    try {
+      const data = JSON.parse(f.content);
+      if (!Array.isArray(data)) throw new Error('expected array of {path,content}');
+      for (const item of data) {
+        if (item.path) await fsWrite(item.path, item.content || '', item);
+      }
+      print(`imported ${data.length} entries`, 'ok');
+    } catch (e) {
+      print('import-fs: ' + e.message, 'err');
+    }
+    return;
+  }
+  return new Promise((resolve) => {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.json,application/json';
+    inp.onchange = async () => {
+      const file = inp.files?.[0];
+      if (!file) { resolve(); return; }
+      try {
+        const data = JSON.parse(await file.text());
+        for (const item of data) {
+          if (item.path) await fsWrite(item.path, item.content || '', item);
+        }
+        print(`imported ${data.length} entries from ${file.name}`, 'ok');
+      } catch (e) {
+        print('import-fs: ' + e.message, 'err');
+      }
+      resolve();
+    };
+    inp.click();
+  });
+};
+
+/* clipboard */
+cmds.copy = cmds.clipboard = async (args) => {
+  const sub = (args[0] || 'last').toLowerCase();
+  if (sub === 'last' || sub === 'prev' || sub === 'previous' || sub === 'out' || sub === 'output') {
+    await copyToClipboard(lastOutput, 'last output');
+    return;
+  }
+  if (sub === 'all' || sub === 'recent') {
+    const n = parseInt(args[1], 10) || 50;
+    const chunk = lastOutputs.slice(-n).map(o => o.text).join('\n');
+    await copyToClipboard(chunk, `${Math.min(n, lastOutputs.length)} lines`);
+    return;
+  }
+  if (sub === 'file' || sub === 'f') {
+    if (!args[1]) return print('usage: copy file <path>', 'err');
+    const f = await fsRead(args[1]);
+    if (!f) return print('copy: no such file', 'err');
+    await copyToClipboard(f.content || '', args[1]);
+    return;
+  }
+  if (sub === 'cmd' || sub === 'history') {
+    await copyToClipboard(history.slice(-20).join('\n'), 'recent commands');
+    return;
+  }
+  // copy <path> shorthand if file exists
+  if (args[0]) {
+    const f = await fsRead(args[0]);
+    if (f) {
+      await copyToClipboard(f.content || '', args[0]);
+      return;
+    }
+    // otherwise copy the rest of the line as literal text
+    await copyToClipboard(args.join(' '), 'text');
+    return;
+  }
+  await copyToClipboard(lastOutput, 'last output');
+};
+
+cmds.find = async (args) => {
+  const base = norm(args[0] || cwd);
+  const all = await fsAll();
+  const prefix = base === '/' ? '/' : base + '/';
+  all.filter(f => f.path === base || f.path.startsWith(prefix))
+     .forEach(f => print(f.path, 'out'));
+};
+cmds.tree = async (args) => {
+  const base = norm(args[0] || cwd);
+  async function walk(dir, prefix) {
+    const list = await fsList(dir);
+    list.forEach((item, idx) => {
+      const last = idx === list.length - 1;
+      const branch = last ? '└── ' : '├── ';
+      print(prefix + branch + item.name + (item.type==='dir'?'/':''), 'out');
+      if (item.type === 'dir') walk(item.path, prefix + (last ? '    ' : '│   '));
+    });
+  }
+  print(base, 'out');
+  await walk(base, '');
+};
+cmds.stat = async (args) => {
+  if (!args[0]) return print('stat: missing operand', 'err');
+  const f = await fsRead(args[0]);
+  if (!f) return print(`stat: ${args[0]}: No such file`, 'err');
+  print(`  File: ${f.path}`, 'out');
+  print(`  Size: ${(f.content||'').length}      Type: ${f.type||'file'}`, 'out');
+  print(`  Mode: ${f.mode||'644'}`, 'out');
+  print(`  Modify: ${f.mtime ? new Date(f.mtime).toISOString() : 'n/a'}`, 'out');
+};
+cmds.du = async (args) => {
+  const base = norm(args[0] || cwd);
+  const all = await fsAll();
+  const prefix = base === '/' ? '/' : base + '/';
+  let total = 0;
+  all.forEach(f => {
+    if (f.path === base || f.path.startsWith(prefix)) {
+      const sz = (f.content||'').length;
+      total += sz;
+      print(`${String(sz).padStart(10)}  ${f.path}`, 'out');
+    }
+  });
+  print(`${String(total).padStart(10)}  total`, 'ok');
+};
+cmds.df = async () => {
+  const all = await fsAll();
+  const used = all.reduce((s,f) => s + (f.content||'').length, 0);
+  print('Filesystem     Size    Used   Avail', 'out');
+  print(`IndexedDB      ∞       ${used}    ∞`, 'out');
+};
+
+cmds.edit = cmds.nano = async (args) => {
+  if (!args[0]) return print('edit: missing file', 'err');
+  const path = norm(args[0]);
+  let f = await fsRead(path);
+  if (!f) {
+    await fsWrite(path, '');
+    f = { content: '', path };
+  }
+  openEditor(path, f.content || '');
+  print(`opened ${path} in Monaco`, 'ok');
+};
+cmds.run = cmds.node = async (args) => {
+  if (!args[0]) return print('run: missing file', 'err');
+  const path = norm(args[0]);
+  const f = await fsRead(path);
+  if (!f) return print(`run: ${path}: No such file`, 'err');
+  if (path.endsWith('.html') || path.endsWith('.htm')) {
+    openPreview(f.content, path);
+    print(`preview ← ${path}`, 'ok');
+  } else {
+    await evalJS(f.content, path);
+  }
+};
+cmds.html = async (args) => {
+  if (!args[0]) return print('html: missing file', 'err');
+  const f = await fsRead(args[0]);
+  if (!f) return print(`html: No such file`, 'err');
+  openPreview(f.content, norm(args[0]));
+};
+cmds.js = async (args, raw) => {
+  const code = raw.replace(/^js\s+/, '');
+  await evalJS(code, '<js>');
+};
+
+/* tiny Python-like expression evaluator (very limited) */
+cmds.python = cmds.py = async (args, raw) => {
+  if (!args.length) {
+    print('NiXl mini-Python (expressions only). Type python <expr>', 'info');
+    print('Example: python 2**10 + len("hello")', 'info');
+    return;
+  }
+  const code = raw.replace(/^(python|py)\s+/, '');
+  try {
+    // extremely limited: allow basic arithmetic, strings, len, print simulation
+    const safe = code
+      .replace(/\blen\s*\(/g, '((x)=>x.length)(')
+      .replace(/\bprint\s*\(/g, 'console.log(')
+      .replace(/\bTrue\b/g, 'true')
+      .replace(/\bFalse\b/g, 'false')
+      .replace(/\bNone\b/g, 'null');
+    // eslint-disable-next-line no-new-func
+    const result = new Function(`"use strict"; return (${safe})`)();
+    if (result !== undefined) print(String(result), 'ok');
+  } catch (e) {
+    print(`PythonError: ${e.message}`, 'err');
+  }
+};
+
+/* Scientific calculator — visual UI + unlimited expression evaluator */
+
+/* ========== CIPHERLAB ========== */
+const PH4_ALPH = [
+  '\u200B', // 00 ZERO WIDTH SPACE
+  '\u200C', // 01 ZERO WIDTH NON-JOINER
+  '\u200D', // 10 ZERO WIDTH JOINER
+  '\u2060', // 11 WORD JOINER
+];
+const PH4_REV = { '\u200B': 0, '\u200C': 1, '\u200D': 2, '\u2060': 3 };
+
+async function sha256Bytes(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return new Uint8Array(buf);
+}
+async function deriveAesKeyFromPassword(password) {
+  const hash = await sha256Bytes(password);
+  return crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+function bytesToBin(bytes) {
+  let s = '';
+  for (const b of bytes) s += b.toString(2).padStart(8, '0');
+  return s;
+}
+function binToBytes(bin) {
+  const clean = bin.replace(/[^01]/g, '');
+  const pad = clean.length % 8 === 0 ? clean : clean.padEnd(clean.length + (8 - clean.length % 8), '0');
+  const out = [];
+  for (let i = 0; i < pad.length; i += 8) out.push(parseInt(pad.slice(i, i + 8), 2));
+  return new Uint8Array(out);
+}
+function bytesToB64(bytes) {
+  let s = '';
+  bytes.forEach(b => { s += String.fromCharCode(b); });
+  return btoa(s);
+}
+function b64ToBytes(b64) {
+  const s = atob(b64);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+function bytesToHex(bytes) {
+  return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function hexToBytes(hex) {
+  const h = hex.replace(/[^0-9a-f]/gi, '');
+  const out = new Uint8Array(h.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
+/** PH4NT0M — invisible stego + AES-256-GCM + ZW caesar */
+async function ph4nt0mEncrypt(plaintext, password, cover) {
+  if (!password) throw new Error('PH4NT0M needs a key/password');
+  const key = await deriveAesKeyFromPassword(password);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const pt = new TextEncoder().encode(plaintext);
+  const ctBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, pt);
+  const ct = new Uint8Array(ctBuf);
+  // pack: iv (12) + ciphertext (includes GCM tag)
+  const packed = new Uint8Array(12 + ct.length);
+  packed.set(iv, 0);
+  packed.set(ct, 12);
+
+  // binary → pair → ZW
+  let bin = bytesToBin(packed);
+  if (bin.length % 2) bin += '0';
+  let zw = '';
+  for (let i = 0; i < bin.length; i += 2) {
+    const pair = bin.slice(i, i + 2);
+    const idx = parseInt(pair, 2); // 0..3
+    zw += PH4_ALPH[idx];
+  }
+
+  // hex of packed AES output drives caesar shifts on 4-char alphabet
+  const hex = bytesToHex(packed);
+  // also fold password into shift stream for key dependency beyond AES
+  const shiftMaterial = await sha256Bytes(password + '|PH4NT0M|' + hex.slice(0, 32));
+  const shifts = [...shiftMaterial].map(b => b % 4);
+
+  let shifted = '';
+  for (let i = 0; i < zw.length; i++) {
+    const cur = PH4_REV[zw[i]];
+    if (cur === undefined) continue;
+    const s = shifts[i % shifts.length];
+    shifted += PH4_ALPH[(cur + s) % 4];
+  }
+
+  // optional cover text with invisible payload appended (or interleave at end)
+  if (cover && cover.length) return cover + shifted;
+  return shifted;
+}
+
+async function ph4nt0mDecrypt(payload, password) {
+  if (!password) throw new Error('PH4NT0M needs a key/password');
+  // extract only ZW alphabet chars
+  let zw = '';
+  for (const ch of payload) {
+    if (PH4_REV[ch] !== undefined) zw += ch;
+  }
+  if (!zw.length) throw new Error('no PH4NT0M payload found (zero-width markers missing)');
+
+  // We need shifts: they depend on hex of packed, which we don't have until decrypt...
+  // Chicken-egg: shifts were derived from password + hex(packed).
+  // Fix: derive shifts ONLY from password for caesar (AES still needs password).
+  // Re-design: caesar shifts from sha256(password + '|PH4NT0M') only — still key-dependent, works for decrypt.
+  // For backward compat with encrypt above that used hex — update encrypt to password-only shifts.
+  const shiftMaterial = await sha256Bytes(password + '|PH4NT0M');
+  const shifts = [...shiftMaterial].map(b => b % 4);
+
+  let unshifted = '';
+  for (let i = 0; i < zw.length; i++) {
+    const cur = PH4_REV[zw[i]];
+    const s = shifts[i % shifts.length];
+    unshifted += PH4_ALPH[(cur - s + 4) % 4];
+  }
+
+  // ZW → binary → bytes
+  let bin = '';
+  for (const ch of unshifted) {
+    const idx = PH4_REV[ch];
+    bin += idx.toString(2).padStart(2, '0');
+  }
+  const packed = binToBytes(bin);
+  if (packed.length < 13) throw new Error('payload too short / corrupt');
+
+  const iv = packed.slice(0, 12);
+  const ct = packed.slice(12);
+  const key = await deriveAesKeyFromPassword(password);
+  try {
+    const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+    return new TextDecoder().decode(ptBuf);
+  } catch (e) {
+    throw new Error('AES decrypt failed (wrong key or corrupt stego)');
+  }
+}
+
+// Fix encrypt to use password-only shifts (matches decrypt)
+async function ph4nt0mEncryptFixed(plaintext, password, cover) {
+  if (!password) throw new Error('PH4NT0M needs a key/password');
+  const key = await deriveAesKeyFromPassword(password);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const pt = new TextEncoder().encode(plaintext);
+  const ctBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, pt);
+  const ct = new Uint8Array(ctBuf);
+  const packed = new Uint8Array(12 + ct.length);
+  packed.set(iv, 0);
+  packed.set(ct, 12);
+
+  let bin = bytesToBin(packed);
+  if (bin.length % 2) bin += '0';
+  let zw = '';
+  for (let i = 0; i < bin.length; i += 2) {
+    zw += PH4_ALPH[parseInt(bin.slice(i, i + 2), 2)];
+  }
+
+  // hex of AES result (for audit / optional display) — shift from key
+  const hex = bytesToHex(packed);
+  const shiftMaterial = await sha256Bytes(password + '|PH4NT0M');
+  const shifts = [...shiftMaterial].map(b => b % 4);
+
+  let shifted = '';
+  for (let i = 0; i < zw.length; i++) {
+    const cur = PH4_REV[zw[i]];
+    shifted += PH4_ALPH[(cur + shifts[i % shifts.length]) % 4];
+  }
+
+  return {
+    stego: (cover && cover.length) ? (cover + shifted) : shifted,
+    hex, // AES packed hex (military layer)
+    zwLen: shifted.length,
+  };
+}
+
+/* classical helpers */
+function caesar(str, shift, decode) {
+  const s = ((decode ? -shift : shift) % 26 + 26) % 26;
+  return [...str].map(c => {
+    const code = c.charCodeAt(0);
+    if (code >= 65 && code <= 90) return String.fromCharCode((code - 65 + s) % 26 + 65);
+    if (code >= 97 && code <= 122) return String.fromCharCode((code - 97 + s) % 26 + 97);
+    return c;
+  }).join('');
+}
+function vigenere(str, key, decode) {
+  if (!key) throw new Error('vigenere needs a key');
+  const k = key.toLowerCase().replace(/[^a-z]/g, '');
+  if (!k) throw new Error('key must contain letters');
+  let j = 0;
+  return [...str].map(c => {
+    const code = c.charCodeAt(0);
+    let base = null;
+    if (code >= 65 && code <= 90) base = 65;
+    else if (code >= 97 && code <= 122) base = 97;
+    if (base === null) return c;
+    const shift = k[j % k.length].charCodeAt(0) - 97;
+    j++;
+    const s = decode ? (26 - shift) % 26 : shift;
+    return String.fromCharCode((code - base + s) % 26 + base);
+  }).join('');
+}
+function xorCrypt(str, key) {
+  if (!key) throw new Error('xor needs a key');
+  const out = [];
+  for (let i = 0; i < str.length; i++) {
+    out.push(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+  }
+  return bytesToHex(new Uint8Array(out));
+}
+function xorDecryptHex(hex, key) {
+  const bytes = hexToBytes(hex);
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i] ^ key.charCodeAt(i % key.length));
+  return s;
+}
+function atbash(str) {
+  return [...str].map(c => {
+    const code = c.charCodeAt(0);
+    if (code >= 65 && code <= 90) return String.fromCharCode(90 - (code - 65));
+    if (code >= 97 && code <= 122) return String.fromCharCode(122 - (code - 97));
+    return c;
+  }).join('');
+}
+function railFenceEnc(str, rails) {
+  rails = Math.max(2, rails | 0);
+  const fence = Array.from({ length: rails }, () => []);
+  let r = 0, dir = 1;
+  for (const ch of str) {
+    fence[r].push(ch);
+    r += dir;
+    if (r === 0 || r === rails - 1) dir *= -1;
+  }
+  return fence.map(row => row.join('')).join('');
+}
+function railFenceDec(str, rails) {
+  rails = Math.max(2, rails | 0);
+  const len = str.length;
+  const pattern = [];
+  let r = 0, dir = 1;
+  for (let i = 0; i < len; i++) {
+    pattern.push(r);
+    r += dir;
+    if (r === 0 || r === rails - 1) dir *= -1;
+  }
+  const counts = Array(rails).fill(0);
+  pattern.forEach(p => counts[p]++);
+  const rows = [];
+  let idx = 0;
+  for (let i = 0; i < rails; i++) {
+    rows.push(str.slice(idx, idx + counts[i]).split(''));
+    idx += counts[i];
+  }
+  const pos = Array(rails).fill(0);
+  return pattern.map(p => rows[p][pos[p]++]).join('');
+}
+const MORSE = {
+  A:'.-', B:'-...', C:'-.-.', D:'-..', E:'.', F:'..-.', G:'--.', H:'....', I:'..', J:'.---',
+  K:'-.-', L:'.-..', M:'--', N:'-.', O:'---', P:'.--.', Q:'--.-', R:'.-.', S:'...', T:'-',
+  U:'..-', V:'...-', W:'.--', X:'-..-', Y:'-.--', Z:'--..',
+  '0':'-----','1':'.----','2':'..---','3':'...--','4':'....-','5':'.....','6':'-....','7':'--...','8':'---..','9':'----.',
+  '.':'.-.-.-', ',':'--..--', '?':'..--..', '/':'-..-.', ' ':'/'
+};
+const MORSE_REV = Object.fromEntries(Object.entries(MORSE).map(([k,v]) => [v, k]));
+function morseEnc(str) {
+  return [...str.toUpperCase()].map(c => MORSE[c] || '').filter(Boolean).join(' ');
+}
+function morseDec(str) {
+  return str.trim().split(/\s+/).map(c => MORSE_REV[c] || '?').join('');
+}
+
+cmds.cipher = cmds.cipherlab = async (args, raw) => {
+  const sub = (args[0] || 'help').toLowerCase();
+  const rest = args.slice(1);
+
+  if (sub === 'help' || sub === '-h') {
+    printHtml(`<span style="color:var(--accent)">CIPHERLAB // NiXl</span>
+
+<span style="color:var(--cyan)">Military-grade</span>
+  cipher aes-enc &lt;pass&gt; &lt;text&gt;     AES-256-GCM (password-derived key)
+  cipher aes-dec &lt;pass&gt; &lt;b64&gt;
+  aes-gen / aes-import            session key (also used by WSS)
+
+<span style="color:var(--cyan)">PH4NT0M — invisible steganography</span>
+  cipher ph4nt0m enc &lt;pass&gt; &lt;text&gt; [cover...]
+  cipher ph4nt0m dec &lt;pass&gt; &lt;payload&gt;
+  ph4nt0m enc|dec …               short alias
+
+  Pipeline: plaintext → AES-256-GCM → binary → bit-pairs →
+  zero-width alphabet (00/01/10/11) → key-derived Caesar on 4 ZW glyphs.
+  Output looks empty / hides inside cover text.
+
+<span style="color:var(--cyan)">Classical</span>
+  cipher caesar &lt;shift&gt; &lt;text|@file&gt;  (use @path or --file path for files)
+  cipher rot13 &lt;text&gt;
+  cipher vigenere &lt;key&gt; &lt;text&gt;    cipher vigenere-dec &lt;key&gt; &lt;text&gt;
+  cipher atbash &lt;text&gt;
+  cipher xor &lt;key&gt; &lt;text&gt;         → hex    cipher xor-dec &lt;key&gt; &lt;hex&gt;
+  cipher rail &lt;rails&gt; &lt;text&gt;      cipher rail-dec &lt;rails&gt; &lt;text&gt;
+  cipher morse &lt;text&gt;             cipher morse-dec &lt;code&gt;
+
+<span style="color:var(--cyan)">Encoding</span>
+  cipher b64 / b64-dec
+  cipher hex / hex-dec
+  cipher binary / binary-dec
+  cipher url / url-dec
+  cipher hash &lt;text&gt;              SHA-256 hex
+
+<span style="color:var(--cyan)">Analyze</span>
+  cipher freq &lt;text&gt;              letter frequency
+  cipher identify &lt;text&gt;          guess encoding
+  cipher zw-scan &lt;text&gt;           count zero-width / PH4NT0M markers
+`, 'info');
+    return;
+  }
+
+  const takeText = (fromIdx) => {
+    // rebuild from raw after subcommand tokens
+    const parts = raw.trim().split(/\s+/);
+    // parts[0]=cipher, parts[1]=sub, ...
+    return parts.slice(fromIdx).join(' ');
+  };
+
+  // strip --copy from args (flag handled globally too)
+  const argsClean = args.filter(a => a !== '--copy');
+  const wantCopy = args.includes('--copy') || /\s--copy\b/.test(raw);
+  if (wantCopy) copyNext = true;
+
+  try {
+    if (sub === 'ph4nt0m') {
+      const act = (rest[0] || '').toLowerCase();
+      if (act === 'enc' || act === 'encrypt') {
+        const pass = rest[1];
+        const m = raw.match(/^(?:cipher(?:lab)?|ph4nt0m)\s+ph4nt0m\s+enc(?:rypt)?\s+(\S+)\s+([\s\S]+)$/i)
+               || raw.match(/^ph4nt0m\s+enc(?:rypt)?\s+(\S+)\s+([\s\S]+)$/i);
+        let password, body;
+        if (m) { password = m[1]; body = m[2]; }
+        else { password = pass; body = rest.slice(2).join(' '); }
+        // optional: last segment after | is cover
+        let text = body, cover = '';
+        if (body.includes(' | ')) {
+          const i = body.indexOf(' | ');
+          text = body.slice(0, i);
+          cover = body.slice(i + 3);
+        }
+        const r = await ph4nt0mEncryptFixed(text, password, cover);
+        print(`PH4NT0M locked  zw_glyphs=${r.zwLen}  aes_hex_len=${r.hex.length}`, 'ok');
+        print('(payload below — may look empty; copy all)', 'info');
+        print(r.stego, 'out');
+        print('AES layer (hex, optional audit):', 'sys');
+        print(r.hex.slice(0, 120) + (r.hex.length > 120 ? '…' : ''), 'sys');
+        return;
+      }
+      if (act === 'dec' || act === 'decrypt') {
+        const m = raw.match(/^(?:cipher(?:lab)?|ph4nt0m)\s+ph4nt0m\s+dec(?:rypt)?\s+(\S+)\s+([\s\S]+)$/i)
+               || raw.match(/^ph4nt0m\s+dec(?:rypt)?\s+(\S+)\s+([\s\S]+)$/i);
+        if (!m) return print('usage: ph4nt0m dec <pass> <payload>', 'err');
+        const pt = await ph4nt0mDecrypt(m[2], m[1]);
+        print(pt, 'ok');
+        return;
+      }
+      return print('usage: ph4nt0m enc <pass> <text> [| cover]  |  ph4nt0m dec <pass> <payload>', 'err');
+    }
+
+    if (sub === 'aes-enc') {
+      const pass = rest[0];
+      const msg = await resolveTextArg(rest.slice(1).join(' '));
+      if (!pass || !msg) return print('usage: cipher aes-enc <pass> <text|@file>', 'err');
+      const key = await deriveAesKeyFromPassword(pass);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(msg)));
+      const packed = new Uint8Array(12 + ct.length);
+      packed.set(iv, 0); packed.set(ct, 12);
+      print(bytesToB64(packed), 'ok');
+      return;
+    }
+    if (sub === 'aes-dec') {
+      const pass = rest[0];
+      const b64 = await resolveTextArg(rest.slice(1).join(' '));
+      if (!pass || !b64) return print('usage: cipher aes-dec <pass> <b64|@file>', 'err');
+      const key = await deriveAesKeyFromPassword(pass);
+      const packed = b64ToBytes(b64.trim());
+      const iv = packed.slice(0, 12), ct = packed.slice(12);
+      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+      print(new TextDecoder().decode(pt), 'ok');
+      return;
+    }
+
+    if (sub === 'caesar') {
+      const shift = parseInt(rest[0], 10);
+      const msg = await resolveTextArg(rest.slice(1).join(' '));
+      if (isNaN(shift) || !msg) return print('usage: cipher caesar <shift> <text|@file>', 'err');
+      print(caesar(msg, shift, false), 'ok');
+      return;
+    }
+    if (sub === 'caesar-dec') {
+      const shift = parseInt(rest[0], 10);
+      const msg = await resolveTextArg(rest.slice(1).join(' '));
+      print(caesar(msg, shift, true), 'ok');
+      return;
+    }
+    if (sub === 'rot13') {
+      print(caesar(await resolveTextArg(rest.join(' ')), 13, false), 'ok');
+      return;
+    }
+    if (sub === 'vigenere') {
+      const key = rest[0];
+      const msg = await resolveTextArg(rest.slice(1).join(' '));
+      print(vigenere(msg, key, false), 'ok');
+      return;
+    }
+    if (sub === 'vigenere-dec') {
+      const key = rest[0];
+      const msg = await resolveTextArg(rest.slice(1).join(' '));
+      print(vigenere(msg, key, true), 'ok');
+      return;
+    }
+    if (sub === 'atbash') {
+      print(atbash(await resolveTextArg(rest.join(' '))), 'ok');
+      return;
+    }
+    if (sub === 'xor') {
+      const key = rest[0];
+      const msg = await resolveTextArg(rest.slice(1).join(' '));
+      print(xorCrypt(msg, key), 'ok');
+      return;
+    }
+    if (sub === 'xor-dec') {
+      const key = rest[0];
+      const hex = await resolveTextArg(rest.slice(1).join(''));
+      print(xorDecryptHex(hex, key), 'ok');
+      return;
+    }
+    if (sub === 'rail') {
+      const rails = parseInt(rest[0], 10);
+      print(railFenceEnc(rest.slice(1).join(' '), rails), 'ok');
+      return;
+    }
+    if (sub === 'rail-dec') {
+      const rails = parseInt(rest[0], 10);
+      print(railFenceDec(rest.slice(1).join(' '), rails), 'ok');
+      return;
+    }
+    if (sub === 'morse') {
+      print(morseEnc(rest.join(' ')), 'ok');
+      return;
+    }
+    if (sub === 'morse-dec') {
+      print(morseDec(rest.join(' ')), 'ok');
+      return;
+    }
+    if (sub === 'b64') {
+      print(btoa(unescape(encodeURIComponent(await resolveTextArg(rest.join(' '))))), 'ok');
+      return;
+    }
+    if (sub === 'b64-dec') {
+      print(decodeURIComponent(escape(atob(rest.join('')))), 'ok');
+      return;
+    }
+    if (sub === 'hex') {
+      const enc = new TextEncoder().encode(await resolveTextArg(rest.join(' ')));
+      print(bytesToHex(enc), 'ok');
+      return;
+    }
+    if (sub === 'hex-dec') {
+      print(new TextDecoder().decode(hexToBytes(rest.join(''))), 'ok');
+      return;
+    }
+    if (sub === 'binary') {
+      const enc = new TextEncoder().encode(await resolveTextArg(rest.join(' ')));
+      print(bytesToBin(enc).replace(/(.{8})/g, '$1 ').trim(), 'ok');
+      return;
+    }
+    if (sub === 'binary-dec') {
+      print(new TextDecoder().decode(binToBytes(rest.join(''))), 'ok');
+      return;
+    }
+    if (sub === 'url') {
+      print(encodeURIComponent(rest.join(' ')), 'ok');
+      return;
+    }
+    if (sub === 'url-dec') {
+      print(decodeURIComponent(rest.join('')), 'ok');
+      return;
+    }
+    if (sub === 'hash' || sub === 'sha256') {
+      const h = await sha256Bytes(await resolveTextArg(rest.join(' ')));
+      print(bytesToHex(h), 'ok');
+      return;
+    }
+    if (sub === 'freq') {
+      const msg = rest.join(' ').toLowerCase().replace(/[^a-z]/g, '');
+      const map = {};
+      for (const c of msg) map[c] = (map[c] || 0) + 1;
+      const total = msg.length || 1;
+      Object.entries(map).sort((a,b) => b[1]-a[1]).forEach(([c,n]) => {
+        print(`${c}: ${n} (${((n/total)*100).toFixed(1)}%)`, 'out');
+      });
+      return;
+    }
+    if (sub === 'zw-scan') {
+      const msg = rest.join(' ') || '';
+      let counts = { total: 0 };
+      for (const ch of msg) {
+        if (PH4_REV[ch] !== undefined) {
+          counts.total++;
+          counts[ch] = (counts[ch] || 0) + 1;
+        }
+      }
+      print(`PH4NT0M markers: ${counts.total}`, counts.total ? 'ok' : 'info');
+      print(`U+200B(00): ${counts['\u200B']||0}  U+200C(01): ${counts['\u200C']||0}  U+200D(10): ${counts['\u200D']||0}  U+2060(11): ${counts['\u2060']||0}`, 'out');
+      return;
+    }
+    if (sub === 'identify') {
+      const msg = rest.join(' ');
+      const guesses = [];
+      if (/^[A-Za-z0-9+/=]+$/.test(msg) && msg.length % 4 === 0) guesses.push('base64?');
+      if (/^[0-9a-fA-F]+$/.test(msg) && msg.length % 2 === 0) guesses.push('hex?');
+      if (/^[01\s]+$/.test(msg)) guesses.push('binary?');
+      if (/^[.\-\/\s]+$/.test(msg)) guesses.push('morse?');
+      let zw = 0;
+      for (const ch of msg) if (PH4_REV[ch] !== undefined) zw++;
+      if (zw > 8) guesses.push('PH4NT0M stego?');
+      print(guesses.length ? guesses.join(', ') : 'unknown / plaintext', 'info');
+      return;
+    }
+
+    print(`cipher: unknown subcommand "${sub}" — try: cipher help`, 'err');
+  } catch (e) {
+    print(`cipher: ${e.message}`, 'err');
+  }
+};
+
+cmds.ph4nt0m = async (args, raw) => {
+  // alias → cipher ph4nt0m ...
+  const line = raw.replace(/^ph4nt0m\b/i, 'cipher ph4nt0m');
+  return cmds.cipher(args, line);
+};
+
+cmds.calc = cmds.calculator = async (args, raw) => {
+  // strip command name to get the expression
+  const expr = raw.replace(/^(calc|calculator)\s*/i, '').trim();
+
+  // no args → open visual calculator
+  if (!expr) {
+    openPreview(buildCalculatorHTML(), 'scientific calculator');
+    print('Opened scientific calculator in preview', 'ok');
+    print('powered by calculator.net (license preserved)', 'info');
+    print('Tip: calc <expression>  for unlimited terminal math  e.g.  calc 2**100 * sin(pi/4)', 'info');
+    return;
+  }
+
+  // with expression → unlimited evaluator
+  try {
+    const result = evaluateMath(expr);
+    print(formatMathResult(result), 'ok');
+    // remember last result
+    window.__nixl_last = result;
+    await metaSet('calc_last', String(result));
+  } catch (e) {
+    print(`calc: ${e.message}`, 'err');
+  }
+};
+
+/* Unlimited math evaluator — Python-friendly syntax, no artificial size limits */
+function evaluateMath(input) {
+  let s = String(input).trim();
+  if (!s) throw new Error('empty expression');
+
+  // Python / friendly replacements
+  s = s
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false')
+    .replace(/\bNone\b/g, 'null')
+    .replace(/\^/g, '**')
+    .replace(/\bmath\./g, '')
+    .replace(/\bPI\b/g, 'pi')
+    .replace(/\bE\b/g, 'e')
+    .replace(/\bfact\b/g, 'factorial')
+    .replace(/\bfactorial\b/g, 'factorial')
+    .replace(/\b_\b/g, '(typeof __nixl_last!=="undefined"?__nixl_last:0)');
+
+  // ---- exact big-integer / unlimited helpers ----
+  const MAX_EXACT_DIGITS = 20000; // materialize full integer up to this many digits
+
+  function isIntLike(v) {
+    if (typeof v === 'bigint') return true;
+    if (typeof v === 'number') return Number.isFinite(v) && Number.isInteger(v);
+    if (v && v.__sci) return false;
+    return false;
+  }
+  function asBig(v) {
+    if (typeof v === 'bigint') return v;
+    if (typeof v === 'number') {
+      if (!Number.isFinite(v) || !Number.isInteger(v)) throw new Error('expected integer');
+      return BigInt(v);
+    }
+    return BigInt(v);
+  }
+  function bigLog10(n) {
+    // log10 of positive bigint (or number)
+    if (typeof n === 'number') return Math.log10(Math.abs(n));
+    const neg = n < 0n;
+    if (neg) n = -n;
+    if (n === 0n) return -Infinity;
+    const str = n.toString();
+    const exp = str.length - 1;
+    const mant = parseFloat(str[0] + '.' + str.slice(1, 18));
+    return exp + Math.log10(mant);
+  }
+  function sciFromLog10(log10, sign) {
+    if (!Number.isFinite(log10)) {
+      return sign < 0 ? -Infinity : Infinity;
+    }
+    let exp = Math.floor(log10);
+    let mant = Math.pow(10, log10 - exp);
+    // normalize mantissa to [1, 10)
+    if (mant >= 10) { mant /= 10; exp += 1; }
+    if (mant < 1 && mant > 0) { mant *= 10; exp -= 1; }
+    return {
+      __sci: true,
+      sign: sign < 0 ? -1 : 1,
+      mantissa: mant,
+      exp10: exp,
+      log10: log10
+    };
+  }
+  function formatSci(sci) {
+    const m = (sci.sign < 0 ? '-' : '') + sci.mantissa.toPrecision(18).replace(/(\.\d*?[1-9])0+$/,'$1').replace(/\.$/, '');
+    return m + 'e' + (sci.exp10 >= 0 ? '+' : '') + sci.exp10;
+  }
+
+  // exact integer power with automatic fallback to scientific form
+  function ipow(base, exp) {
+    let b = asBig(base);
+    let e = asBig(exp);
+    if (e < 0n) {
+      // fractional result
+      return Math.pow(Number(b), Number(e));
+    }
+    if (e === 0n) return 1n;
+    if (b === 0n) return 0n;
+    if (b === 1n) return 1n;
+    if (b === -1n) return (e % 2n === 0n) ? 1n : -1n;
+
+    const sign = b < 0n ? (e % 2n === 0n ? 1 : -1) : 1;
+    const absB = b < 0n ? -b : b;
+
+    // estimate digits with fixed-point so huge exp*log10 stays accurate
+    const log10base = bigLog10(absB);
+    const log10est = Number(e) * log10base; // may lose frac precision when huge
+    if (!Number.isFinite(log10est) || log10est > MAX_EXACT_DIGITS) {
+      // high-precision log10 via scaled BigInt: log10(result) = e * log10(base)
+      const SCALE = 10n ** 18n;
+      const logScaled = BigInt(Math.round(log10base * 1e18));
+      const prod = e * logScaled; // exact at 18 decimal places of log10(base)
+      const exp10 = prod / SCALE;
+      const frac = Number(prod % SCALE) / 1e18;
+      let mant = Math.pow(10, frac);
+      let expN = exp10;
+      if (mant >= 10) { mant /= 10; expN += 1n; }
+      return {
+        __sci: true,
+        sign,
+        mantissa: mant,
+        exp10: expN.toString(), // keep as string — may exceed Number
+        log10: null
+      };
+    }
+
+    // binary exponentiation (exact)
+    let result = 1n;
+    let basePow = absB;
+    let ee = e;
+    while (ee > 0n) {
+      if (ee & 1n) result *= basePow;
+      basePow *= basePow;
+      ee >>= 1n;
+      // safety: if intermediate grows past limit, switch to sci
+      if (result.toString().length > MAX_EXACT_DIGITS) {
+        return sciFromLog10(Number(e) * bigLog10(absB), sign);
+      }
+    }
+    return sign < 0 ? -result : result;
+  }
+
+  function pow(a, b) {
+    // general power: prefer exact int path
+    if (isIntLike(a) && isIntLike(b)) {
+      try { return ipow(a, b); } catch (_) {}
+    }
+    if (a && a.__sci) {
+      // (m*10^e)^b ≈ exp
+      const log10 = b * (Math.log10(a.mantissa) + a.exp10);
+      return sciFromLog10(log10, a.sign < 0 && (b % 2) ? -1 : 1);
+    }
+    const n = Math.pow(Number(a), Number(b));
+    if (Number.isFinite(n)) return n;
+    // overflow float → scientific via logs
+    const log10 = Number(b) * Math.log10(Math.abs(Number(a)));
+    const sign = (Number(a) < 0 && Number(b) % 2 !== 0) ? -1 : 1;
+    return sciFromLog10(log10, sign);
+  }
+
+  function factorial(n) {
+    n = typeof n === 'bigint' ? n : BigInt(Math.trunc(Number(n)));
+    if (n < 0n) throw new Error('factorial: need non-negative integer');
+    if (n > 100000n) {
+      // Stirling approximation in log10 space
+      // log10(n!) ≈ n*log10(n) - n/ln(10) + 0.5*log10(2*pi*n)
+      const nd = Number(n);
+      const log10 = nd * Math.log10(nd) - nd / Math.LN10 + 0.5 * Math.log10(2 * Math.PI * nd);
+      return sciFromLog10(log10, 1);
+    }
+    let r = 1n;
+    for (let i = 2n; i <= n; i++) r *= i;
+    if (r.toString().length > MAX_EXACT_DIGITS) {
+      return sciFromLog10(bigLog10(r), 1);
+    }
+    return r;
+  }
+
+  // rewrite ** to pow()  (right-associative-ish simple pass for common cases)
+  // Convert:  A ** B  →  pow(A, B)  repeatedly
+  function rewritePow(expr) {
+    // tokenize-ish: replace ** with a marker and use recursive descent would be ideal;
+    // pragmatic approach: use Function with pow and replace ** operator via
+    // transforming "x ** y" patterns from right to left
+    let out = expr;
+    // loop until no ** left (handle chains a**b**c as pow(a, pow(b,c)) roughly right-assoc)
+    for (let guard = 0; guard < 64 && out.includes('**'); guard++) {
+      // match the rightmost ** with simple operands (numbers, names, BigInt n, paren groups)
+      const re = /((?:\([^()]*\)|[\w.]+|[\d_]+n?))(\s*\*\*\s*)((?:\([^()]*\)|[\w.]+|[\d_]+n?))/;
+      // rightmost: find all and replace last
+      let last = null, m;
+      const rAll = /((?:\([^()]*(?:\([^()]*\)[^()]*)*\)|[\w.$]+|\d[\d_]*n?))(\s*\*\*\s*)((?:\([^()]*(?:\([^()]*\)[^()]*)*\)|[\w.$]+|\d[\d_]*n?))/g;
+      while ((m = rAll.exec(out)) !== null) last = m;
+      if (!last) {
+        // fallback: wrap whole remaining
+        break;
+      }
+      const [full, left, , right] = last;
+      const replacement = `pow(${left}, ${right})`;
+      out = out.slice(0, last.index) + replacement + out.slice(last.index + full.length);
+    }
+    if (out.includes('**')) {
+      // last resort: replace operator token for eval with custom - use pow via
+      // converting remaining ** to * * is wrong; throw
+      throw new Error('could not parse ** expression; try pow(base, exp)');
+    }
+    return out;
+  }
+
+  try {
+    s = rewritePow(s);
+  } catch (e) {
+    // leave s; may still work if pure Math
+  }
+
+  // promote large integer literals to BigInt so they don't lose precision
+  s = s.replace(/\b(\d{16,})\b/g, (m) => m + 'n');
+
+  // map friendly names to our functions / Math
+  const pi = Math.PI, e = Math.E, tau = Math.PI * 2, inf = Infinity, nan = NaN;
+  const sind = (x) => Math.sin(x * Math.PI / 180);
+  const cosd = (x) => Math.cos(x * Math.PI / 180);
+  const tand = (x) => Math.tan(x * Math.PI / 180);
+  const asind = (x) => Math.asin(x) * 180 / Math.PI;
+  const acosd = (x) => Math.acos(x) * 180 / Math.PI;
+  const atand = (x) => Math.atan(x) * 180 / Math.PI;
+
+  const scopeNames = [
+    'Math','pi','e','tau','inf','nan','factorial','pow','ipow',
+    'sind','cosd','tand','asind','acosd','atand',
+    'abs','min','max','floor','ceil','round','trunc','sign',
+    'sqrt','cbrt','exp','log','log10','log2','ln',
+    'sin','cos','tan','asin','acos','atan','atan2',
+    'sinh','cosh','tanh','asinh','acosh','atanh','hypot','random'
+  ];
+  const scopeValues = [
+    Math, pi, e, tau, inf, nan, factorial, pow, ipow,
+    sind, cosd, tand, asind, acosd, atand,
+    Math.abs, Math.min, Math.max, Math.floor, Math.ceil, Math.round, Math.trunc, Math.sign,
+    Math.sqrt, Math.cbrt, Math.exp, Math.log, Math.log10, Math.log2, Math.log,
+    Math.sin, Math.cos, Math.tan, Math.asin, Math.acos, Math.atan, Math.atan2,
+    Math.sinh, Math.cosh, Math.tanh, Math.asinh, Math.acosh, Math.atanh, Math.hypot, Math.random
+  ];
+
+  const fn = new Function(...scopeNames, `"use strict"; return (${s});`);
+  const result = fn(...scopeValues);
+
+  if (result && result.__sci) return result;
+  if (typeof result === 'bigint') return result;
+  if (typeof result === 'number' && !Number.isFinite(result)) {
+    if (Number.isNaN(result)) throw new Error('result is NaN');
+    // Infinity from float path — try to avoid by returning sci if we can
+    return result;
+  }
+  return result;
+}
+
+function formatMathResult(v) {
+  if (v && v.__sci) {
+    const sign = v.sign < 0 ? '-' : '';
+    let mant = Number(v.mantissa).toPrecision(18);
+    mant = mant.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.$/, '');
+    const exp = String(v.exp10);
+    const expSign = exp.startsWith('-') ? '' : '+';
+    return sign + mant + ' × 10^' + exp + '   (' + sign + mant + 'e' + expSign + exp + ')';
+  }
+  if (typeof v === 'bigint') {
+    const str = v.toString();
+    // raw full integer — no trailing 'n', no truncation
+    if (str.length > 200) {
+      // also show compact sci preview
+      const log10 = str.length - 1 + Math.log10(parseFloat(str[0] + '.' + str.slice(1, 16)));
+      const exp = Math.floor(log10);
+      const mant = Math.pow(10, log10 - exp);
+      return str + '\n≈ ' + mant.toPrecision(12) + ' × 10^' + exp;
+    }
+    return str;
+  }
+  if (typeof v === 'number') {
+    if (!Number.isFinite(v)) return String(v);
+    if (Number.isInteger(v) && Math.abs(v) < 1e15) return String(v);
+    const abs = Math.abs(v);
+    if (abs !== 0 && (abs < 1e-6 || abs >= 1e21)) return v.toExponential(15);
+    let s = v.toPrecision(18);
+    if (s.includes('e') || s.includes('E')) return s;
+    if (s.includes('.')) s = s.replace(/\.?0+$/, '');
+    return s;
+  }
+  return String(v);
+}
+
+function buildCalculatorHTML() {
+  // Improved dark UI while preserving original calculator.net JS logic & license terms
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scientific Calculator — NiXl</title>
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --panel: #121216;
+    --border: #2a2a32;
+    --text: #e4e4e7;
+    --muted: #71717a;
+    --display-bg: #0c0c0e;
+    --display-border: #3f3f46;
+    --func: #1e293b;
+    --func-text: #67e8f9;
+    --func-hover: #0e7490;
+    --num: #27272a;
+    --num-text: #fafafa;
+    --num-hover: #3f3f46;
+    --op: #3f3f46;
+    --op-text: #e4e4e7;
+    --op-hover: #52525b;
+    --eq: #7f1d1d;
+    --eq-text: #fecaca;
+    --eq-hover: #991b1b;
+    --accent: #67e8f9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+  }
+  h1 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 0.85rem;
+    letter-spacing: -0.02em;
+    text-shadow: 0 0 18px rgba(103,232,249,0.25);
+  }
+  #sciout {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(103,232,249,0.04);
+    max-width: 340px;
+    width: 100%;
+  }
+  #sciOutPut {
+    font-family: ui-monospace, 'Cascadia Code', 'JetBrains Mono', monospace;
+    font-size: 1.55rem;
+    font-weight: 500;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    text-align: right;
+    background: var(--display-bg);
+    border: 1px solid var(--display-border);
+    border-radius: 8px;
+    color: #f4f4f5;
+    min-height: 52px;
+    letter-spacing: 0.02em;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+    justify-content: center;
+  }
+  .scifunc, .scinm, .sciop, .scieq {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 40px;
+    border-radius: 8px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid transparent;
+    transition: background 0.12s, transform 0.08s, border-color 0.12s;
+  }
+  .scifunc:active, .scinm:active, .sciop:active, .scieq:active {
+    transform: scale(0.96);
+  }
+  .scifunc {
+    background: var(--func);
+    color: var(--func-text);
+    border-color: #334155;
+    font-size: 0.82rem;
+  }
+  .scifunc:hover { background: var(--func-hover); color: #fff; }
+  .scinm {
+    background: var(--num);
+    color: var(--num-text);
+    border-color: #3f3f46;
+  }
+  .scinm:hover { background: var(--num-hover); }
+  .sciop {
+    background: var(--op);
+    color: var(--op-text);
+    border-color: #52525b;
+  }
+  .sciop:hover { background: var(--op-hover); }
+  .scieq {
+    background: var(--eq);
+    color: var(--eq-text);
+    border-color: #991b1b;
+  }
+  .scieq:hover { background: var(--eq-hover); color: #fff; }
+  .scird {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    height: 40px;
+    padding: 0 8px;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .scird label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .scird input { accent-color: var(--accent); }
+  #calfootnote {
+    margin-top: 14px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  #calfootnote a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  #calfootnote a:hover { text-decoration: underline; }
+  .terms {
+    margin-top: 10px;
+    font-size: 0.65rem;
+    color: #52525b;
+    max-width: 340px;
+    text-align: center;
+    line-height: 1.4;
+  }
+</style>
+</head>
+<body>
+<!--
+TERMS OF USE
+BY USING THE CODE, YOU AGREE:
+1. THAT THE MATERIALS ARE PROVIDED "AS IS" AND WITHOUT WARRANTIES OF ANY KIND
+2. NOT TO CHANGE ANY OF THE JAVASCRIPT CODE, INCLUDING THE LICENSE TEXT
+3. NOT TO REMOVE THE LINE OF TEXT "powered by calculator.net"
+4. THAT THE COPYRIGHT BELONGS TO calculator.net
+5. NOT TO REMOVE THE TERMS OF USE
+-->
+<!--BEGIN OF SCIENTIFIC CALCULATOR CODE-->
+<script>
+/*****************************************
+(C) https://www.calculator.net all right reserved.
+*****************************************/
+function gObj(obj) {var theObj;if(document.all){if(typeof obj=="string"){return document.all(obj);}else{return obj.style;}}if(document.getElementById){if(typeof obj=="string"){return document.getElementById(obj);}else{return obj.style;}}return null;}function trimAll(sString){while (sString.substring(0,1) == ' '){sString = sString.substring(1, sString.length);}while (sString.substring(sString.length-1, sString.length) == ' '){sString = sString.substring(0,sString.length-1);} return sString;} function showDebugInfo(){}function r(A){if(A=="10x"||A=="log"||A=="ex"||A=="ln"||A=="sin"||A=="asin"||A=="cos"||A=="acos"||A=="tan"||A=="atan"||A=="e"||A=="pi"||A=="n!"||A=="x2"||A=="1/x"||A=="swap"||A=="x3"||A=="3x"||A=="RND"||A=="M-"||A=="qc"||A=="MC"||A=="MR"||A=="MS"||A=="M+"||A=="sqrt"||A=="pc"){func(A)}else{if(A==1||A==2||A==3||A==4||A==5||A==6||A==7||A==8||A==9||A==0){numInput(A)}else{if(A=="pow"||A=="apow"||A=="+"||A=="-"||A=="*"||A=="/"){opt(A)}else{if(A=="("){popen()}else{if(A==")"){pclose()}else{if(A=="EXP"){exp()}else{if(A=="."){if(entered){value=0;digits=1}entered=false;if((decimal==0)&&(value==0)&&(digits==0)){digits=1}if(decimal==0){decimal=1}refresh()}else{if(A=="+/-"){if(exponent){Hj=-Hj}else{value=-value}refresh()}else{if(A=="C"){level=0;exponent=false;value=0;enter();refresh()}else{if(A=="="){enter();while(level>0){evalx()}refresh()}}}}}}}}}}}var totalDigits=12;var pareSize=12;var degreeRadians="degree";var value=0;var memory=0;var level=0;var entered=true;var decimal=0;var fixed=0;var exponent=false;var digits=0;var showValue="0";var isShowValue=true;function stackItem(){this.value=0;this.op=""}function array(A){this[0]=0;for(i=0;i<A;++i){this[i]=0;this[i]=new stackItem()}this.gG=A}uI=new array(pareSize);function push(B,C,A){if(level==pareSize){return false}for(i=level;i>0;--i){uI[i].value=uI[i-1].value;uI[i].op=uI[i-1].op;uI[i].vg=uI[i-1].vg}uI[0].value=B;uI[0].op=C;uI[0].vg=A;++level;return true}function pop(){if(level==0){return false}for(i=0;i<level;++i){uI[i].value=uI[i+1].value;uI[i].op=uI[i+1].op;uI[i].vg=uI[i+1].vg}--level;return true}function format(I){if(typeof (cc)!="undefined"){return };var E=""+I;if(E.indexOf("N")>=0||(I==2*I&&I==1+I)){return"Error "}var G=E.indexOf("e");if(G>=0){var A=E.substring(G+1,E.length);if(G>11){G=11}E=E.substring(0,G);if(E.indexOf(".")<0){E+="."}else{j=E.length-1;while(j>=0&&E.charAt(j)=="0"){--j}E=E.substring(0,j+1)}E+=" "+A}else{var J=false;if(I<0){I=-I;J=true}var C=Math.floor(I);var K=I-C;var D=totalDigits-(""+C).length-1;if(!entered&&fixed>0){D=fixed}var F=" 1000000000000000000".substring(1,D+2)+"";if((F=="")||(F==" ")){F=1}else{F=parseInt(F)}var B=Math.floor(K*F+0.5);C=Math.floor(Math.floor(I*F+0.5)/F);if(J){E="-"+C}else{E=""+C}var H="00000000000000"+B;H=H.substring(H.length-D,H.length);G=H.length-1;if(entered||fixed==0){while(G>=0&&H.charAt(G)=="0"){--G}H=H.substring(0,G+1)}if(G>=0){E+="."+H}}return E}function refresh(){var A=format(value);if(exponent){if(Hj<0){A+=" "+Hj}else{A+=" +"+Hj}}if(A.indexOf(".")<0&&A!="Error "){if(entered||decimal>0){A+="."}else{A+=" "}}if(""==(""+A)){document.getElementById("sciOutPut").innerHTML="&nbsp;"}else{document.getElementById("sciOutPut").innerHTML=A}}function evalx(){if(level==0){return false}op=uI[0].op;Qk=uI[0].value;if(op=="+"){value=parseFloat(Qk)+value}else{if(op=="-"){value=Qk-value}else{if(op=="*"){value=Qk*value}else{if(op=="/"){value=Qk/value}else{if(op=="pow"){value=Math.pow(Qk,value)}else{if(op=="apow"){value=Math.pow(Qk,1/value)}}}}}}pop();if(op=="("){return false}return true}function popen(){enter();if(!push(0,"(",0)){value="NAN"}refresh()}function pclose(){enter();while(evalx()){}refresh()}function opt(A){enter();if(A=="+"||A=="-"){vg=1}else{if(A=="*"||A=="/"){vg=2}else{if(A=="pow"||A=="apow"){vg=3}}}if(level>0&&vg<=uI[0].vg){evalx()}if(!push(value,A,vg)){value="NAN"}refresh()}function enter(){if(exponent){value=value*Math.exp(Hj*Math.LN10)}entered=true;exponent=false;decimal=0;fixed=0}function numInput(A){if(entered){value=0;digits=0;entered=false}if(A==0&&digits==0){refresh();return }if(exponent){if(Hj<0){A=-A}if(digits<3){Hj=Hj*10+A;++digits;refresh()}return }if(value<0){A=-A}if(digits<totalDigits-1){++digits;if(decimal>0){decimal=decimal*10;value=value+(A/decimal);++fixed}else{value=value*10+A}}refresh()}function exp(){if(entered||exponent){return }exponent=true;Hj=0;digits=0;decimal=0;refresh()}function func(D){enter();if(D=="1/x"){value=1/value}if(D=="pc"){value=value/100}if(D=="qc"){value=value/1000}else{if(D=="swap"){var B=value;value=uI[0].value;uI[0].value=B}else{if(D=="n!"){if(value<0||value>200||value!=Math.round(value)){value="NAN"}else{var E=1;var A;for(A=1;A<=value;++A){E*=A}value=E}}else{if(D=="MR"){value=memory}else{if(D=="M+"){memory+=value}else{if(D=="MS"){memory=value}else{if(D=="MC"){memory=0}else{if(D=="M-"){memory-=value}else{if(D=="asin"){if(degreeRadians=="degree"){value=Math.asin(value)*180/Math.PI}else{value=Math.asin(value)}}else{if(D=="acos"){if(degreeRadians=="degree"){value=Math.acos(value)*180/Math.PI}else{value=Math.acos(value)}}else{if(D=="atan"){if(degreeRadians=="degree"){value=Math.atan(value)*180/Math.PI}else{value=Math.atan(value)}}else{if(D=="e^x"){value=Math.exp(value*Math.LN10)}else{if(D=="2^x"){value=Math.exp(value*Math.LN2)}else{if(D=="e^x"){value=Math.exp(value)}else{if(D=="x^2"){value=value*value}else{if(D=="e"){value=Math.E}else{if(D=="ex"){value=Math.pow(Math.E,value)}else{if(D=="10x"){value=Math.pow(10,value)}else{if(D=="x3"){value=value*value*value}else{if(D=="3x"){value=Math.pow(value,1/3)}else{if(D=="x2"){value=value*value}else{if(D=="sin"){if(degreeRadians=="degree"){value=Math.sin(value/180*Math.PI)}else{value=Math.sin(value)}}else{if(D=="cos"){if(degreeRadians=="degree"){var C=(value%360);if(C<0){C=C+360}if(C==90){value=0}else{if(C==270){value=0}else{value=Math.cos(value/180*Math.PI)}}}else{var C=(value*180/Math.PI)%360;if(C<0){C=C+360}if((Math.abs(C-90)<1e-10)||(Math.abs(C-270)<1e-10)){value=0}else{value=Math.cos(value)}}}else{if(D=="tan"){if(degreeRadians=="degree"){value=Math.tan(value/180*Math.PI)}else{value=Math.tan(value)}}else{if(D=="log"){value=Math.log(value)/Math.LN10}else{if(D=="log2"){value=Math.log(value)/Math.LN2}else{if(D=="ln"){value=Math.log(value)}else{if(D=="sqrt"){value=Math.sqrt(value)}else{if(D=="pi"){value=Math.PI}else{if(D=="RND"){value=Math.random()}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}refresh()};
+<\/script>
+
+<div id="sciout">
+  <div id="sciOutPut">0</div>
+  <div class="row">
+    <span onclick="r('sin')" class="scifunc">sin</span>
+    <span onclick="r('cos')" class="scifunc">cos</span>
+    <span onclick="r('tan')" class="scifunc">tan</span>
+    <span class="scird">
+      <label for="scirdsettingd"><input id="scirdsettingd" type="radio" name="scirdsetting" value="deg" onClick="degreeRadians='degree';" checked>Deg</label>
+      <label for="scirdsettingr"><input id="scirdsettingr" type="radio" name="scirdsetting" value="rad" onClick="degreeRadians='radians';">Rad</label>
+    </span>
+  </div>
+  <div class="row">
+    <span onclick="r('asin')" class="scifunc">sin<sup>-1</sup></span>
+    <span onclick="r('acos')" class="scifunc">cos<sup>-1</sup></span>
+    <span onclick="r('atan')" class="scifunc">tan<sup>-1</sup></span>
+    <span onclick="r('pi')" class="scifunc">π</span>
+    <span onclick="r('e')" class="scifunc">e</span>
+  </div>
+  <div class="row">
+    <span onclick="r('pow')" class="scifunc">x<sup>y</sup></span>
+    <span onclick="r('x3')" class="scifunc">x<sup>3</sup></span>
+    <span onclick="r('x2')" class="scifunc">x<sup>2</sup></span>
+    <span onclick="r('ex')" class="scifunc">e<sup>x</sup></span>
+    <span onclick="r('10x')" class="scifunc">10<sup>x</sup></span>
+  </div>
+  <div class="row">
+    <span onclick="r('apow')" class="scifunc"><sup>y</sup>√x</span>
+    <span onclick="r('3x')" class="scifunc"><sup>3</sup>√x</span>
+    <span onclick="r('sqrt')" class="scifunc">√x</span>
+    <span onclick="r('ln')" class="scifunc">ln</span>
+    <span onclick="r('log')" class="scifunc">log</span>
+  </div>
+  <div class="row">
+    <span onclick="r('(')" class="scifunc">(</span>
+    <span onclick="r(')')" class="scifunc">)</span>
+    <span onclick="r('1/x')" class="scifunc">1/x</span>
+    <span onclick="r('pc')" class="scifunc">%</span>
+    <span onclick="r('n!')" class="scifunc">n!</span>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <span onclick="r(7)" class="scinm">7</span>
+    <span onclick="r(8)" class="scinm">8</span>
+    <span onclick="r(9)" class="scinm">9</span>
+    <span onclick="r('+')" class="sciop">+</span>
+    <span onclick="r('MS')" class="sciop">MS</span>
+  </div>
+  <div class="row">
+    <span onclick="r(4)" class="scinm">4</span>
+    <span onclick="r(5)" class="scinm">5</span>
+    <span onclick="r(6)" class="scinm">6</span>
+    <span onclick="r('-')" class="sciop">−</span>
+    <span onclick="r('M+')" class="sciop">M+</span>
+  </div>
+  <div class="row">
+    <span onclick="r(1)" class="scinm">1</span>
+    <span onclick="r(2)" class="scinm">2</span>
+    <span onclick="r(3)" class="scinm">3</span>
+    <span onclick="r('*')" class="sciop">×</span>
+    <span onclick="r('M-')" class="sciop">M−</span>
+  </div>
+  <div class="row">
+    <span onclick="r(0)" class="scinm">0</span>
+    <span onclick="r('.')" class="scinm">.</span>
+    <span onclick="r('EXP')" class="sciop">EXP</span>
+    <span onclick="r('/')" class="sciop">÷</span>
+    <span onclick="r('MR')" class="sciop">MR</span>
+  </div>
+  <div class="row">
+    <span onclick="r('+/-')" class="sciop">±</span>
+    <span onclick="r('RND')" class="sciop">RND</span>
+    <span onclick="r('C')" class="scieq">C</span>
+    <span onclick="r('=')" class="scieq">=</span>
+    <span onclick="r('MC')" class="sciop">MC</span>
+  </div>
+</div>
+<div id="calfootnote">powered by <a href="https://www.calculator.net" rel="nofollow" target="_blank">calculator.net</a></div>
+<div class="terms">
+  TERMS OF USE: Materials provided "AS IS" without warranties.
+  Copyright belongs to calculator.net. Do not remove this notice or the powered-by line.
+</div>
+<!--END OF SCIENTIFIC CALCULATOR CODE-->
+</body>
+</html>`;
+}
+
+/* AES commands */
+cmds['aes-gen'] = async () => {
+  const k = await aesGenerate();
+  print('AES-256-GCM key generated and saved.', 'ok');
+  print(k, 'sys');
+};
+cmds['aes-import'] = async (args) => {
+  if (!args[0]) return print('usage: aes-import <base64-raw-key>', 'err');
+  await aesImport(args[0]);
+  print('Key imported and saved.', 'ok');
+};
+cmds['aes-key'] = async () => {
+  if (!aesKeyRaw) return print('No key loaded. Use aes-gen or aes-import', 'warn');
+  print(aesKeyRaw, 'sys');
+};
+cmds['aes-enc'] = async (args, raw) => {
+  const text = args.join(' ');
+  if (!text) return print('usage: aes-enc <plaintext>', 'err');
+  const ct = await aesEncrypt(text);
+  print(ct, 'ok');
+};
+cmds['aes-dec'] = async (args) => {
+  if (!args[0]) return print('usage: aes-dec <base64-ciphertext>', 'err');
+  const pt = await aesDecrypt(args[0]);
+  print(pt, 'ok');
+};
+cmds['aes-encfile'] = async (args) => {
+  if (args.length < 2) return print('usage: aes-encfile <infile> <outfile>', 'err');
+  const f = await fsRead(args[0]);
+  if (!f) return print('No such file', 'err');
+  const ct = await aesEncrypt(f.content || '');
+  await fsWrite(args[1], ct);
+  print(`encrypted → ${norm(args[1])}`, 'ok');
+};
+cmds['aes-decfile'] = async (args) => {
+  if (args.length < 2) return print('usage: aes-decfile <infile> <outfile>', 'err');
+  const f = await fsRead(args[0]);
+  if (!f) return print('No such file', 'err');
+  const pt = await aesDecrypt(f.content || '');
+  await fsWrite(args[1], pt);
+  print(`decrypted → ${norm(args[1])}`, 'ok');
+};
+
+cmds.curl = cmds.fetch = async (args) => {
+  if (!args[0]) return print('curl: missing URL', 'err');
+  const url = args[0];
+  print(`GET ${url}`, 'info');
+  try {
+    const res = await fetch(url);
+    print(`${res.status} ${res.statusText}`, res.ok ? 'ok' : 'warn');
+    const text = await res.text();
+    print(text.slice(0, 4000) + (text.length > 4000 ? '\n…(truncated)' : ''), 'out');
+  } catch (e) {
+    print(`curl: ${e.message}`, 'err');
+  }
+};
+cmds.wget = async (args) => {
+  if (!args[0]) return print('wget: missing URL', 'err');
+  const url = args[0];
+  const dest = args[1] || url.split('/').pop() || 'index.html';
+  print(`Downloading ${url} → ${dest}`, 'info');
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+    await fsWrite(dest, text);
+    print(`saved ${norm(dest)} (${text.length} bytes)`, 'ok');
+  } catch (e) {
+    print(`wget: ${e.message}`, 'err');
+  }
+};
+
+/* WSS / cross-terminal networking */
+cmds.wss = cmds.net = async (args, raw) => {
+  const sub = (args[0] || 'help').toLowerCase();
+  const rest = args.slice(1);
+
+  const help = () => {
+    printHtml(`<span style="color:var(--accent)">wss / net</span> — cross-terminal chat over a WSS relay (AES-256-GCM)
+
+<span style="color:var(--cyan)">Setup</span>
+  1. Deploy the Cloudflare Worker relay (Room DO) — see: wss relay-code
+  2. wss relay wss://YOUR_WORKER.workers.dev
+  3. Both sides: aes-gen   OR share one key with aes-import &lt;b64&gt;
+  4. wss encrypt on
+  5. wss connect mynroom          (same room name on both terminals)
+
+<span style="color:var(--cyan)">Commands</span>
+  wss connect [room]              join room on default relay
+  wss connect &lt;wss-url&gt;           full URL (path = room)
+  wss connect &lt;url&gt; &lt;room&gt;        override room
+  wss disconnect                  close socket
+  wss send &lt;message&gt;              broadcast (encrypted if encrypt on)
+  wss say &lt;message&gt;               alias for send
+  wss status                      connection + crypto status
+  wss room &lt;name&gt;                 switch room (reconnect)
+  wss relay [url]                 get/set default relay base
+  wss encrypt [on|off]            AES-GCM envelope (default on)
+  wss peers                       list known peer ids
+  wss presence [on|off]           join/leave notices
+  wss echo [on|off]               receive your own sends
+  wss relay-code                  print Worker + Durable Object source
+
+Protocol: plaintext JSON {t:"msg",from,text,ts} or encrypted {t:"e",d:"&lt;aes-b64&gt;"}.
+Relay is opaque broadcast — encryption is end-to-end between NiXl peers.`, 'info');
+  };
+
+  if (sub === 'help' || sub === '-h' || sub === '--help') return help();
+
+  if (sub === 'status') {
+    print(wssStatusLine(), 'info');
+    print(`url: ${wss.url || '(none)'}`, 'out');
+    print(`relay: ${wss.relayBase || '(not set — wss relay <url>)'}`, 'out');
+    print(`aes key: ${aesKey ? 'loaded' : 'NONE'}`, aesKey ? 'ok' : 'warn');
+    return;
+  }
+
+  if (sub === 'relay') {
+    if (!rest[0]) {
+      print(`relay: ${wss.relayBase || '(not set)'}`, 'info');
+      print('Set with: wss relay wss://your-worker.workers.dev', 'info');
+      return;
+    }
+    let base = rest[0].replace(/\/$/, '');
+    if (base.startsWith('https://')) base = 'wss://' + base.slice(8);
+    if (base.startsWith('http://')) base = 'ws://' + base.slice(7);
+    if (!/^wss?:\/\//i.test(base)) base = 'wss://' + base;
+    wss.relayBase = base;
+    await wssSavePrefs();
+    print(`relay set → ${wss.relayBase}`, 'ok');
+    return;
+  }
+
+  if (sub === 'encrypt') {
+    if (!rest[0]) {
+      print(`encrypt: ${wss.encrypt ? 'on' : 'off'}  key: ${aesKey ? 'yes' : 'no'}`, 'info');
+      return;
+    }
+    const v = rest[0].toLowerCase();
+    if (v === 'on' || v === '1' || v === 'true') wss.encrypt = true;
+    else if (v === 'off' || v === '0' || v === 'false') wss.encrypt = false;
+    else return print('usage: wss encrypt on|off', 'err');
+    await wssSavePrefs();
+    print(`encrypt → ${wss.encrypt ? 'on' : 'off'}`, 'ok');
+    if (wss.encrypt && !aesKey) print('No AES key yet — run aes-gen (share the key with peers via aes-import)', 'warn');
+    return;
+  }
+
+  if (sub === 'presence' || sub === 'echo') {
+    if (!rest[0]) {
+      print(`${sub}: ${wss[sub] ? 'on' : 'off'}`, 'info');
+      return;
+    }
+    const v = rest[0].toLowerCase();
+    wss[sub] = (v === 'on' || v === '1' || v === 'true');
+    print(`${sub} → ${wss[sub] ? 'on' : 'off'} (applies on next connect)`, 'ok');
+    return;
+  }
+
+  if (sub === 'peers') {
+    if (!wss.peers.size) return print('(no peers seen yet)', 'info');
+    [...wss.peers].forEach(id => print(id, 'out'));
+    return;
+  }
+
+  if (sub === 'connect') {
+    const a = rest[0], b = rest[1];
+    if (!a && !wss.room && !wss.relayBase) {
+      print('usage: wss connect <room>   or  wss connect wss://host/room', 'err');
+      print('Set relay first: wss relay wss://your-worker.workers.dev', 'info');
+      return;
+    }
+    if (!wss.relayBase && a && !/^wss?:\/\//i.test(a)) {
+      print('No relay base set. Example:', 'warn');
+      print('  wss relay wss://nixl-relay.<you>.workers.dev', 'info');
+      print('  wss connect lobby', 'info');
+      return;
+    }
+    await wssConnect(a, b);
+    return;
+  }
+
+  if (sub === 'disconnect' || sub === 'close' || sub === 'leave') {
+    wssDisconnect();
+    return;
+  }
+
+  if (sub === 'room') {
+    if (!rest[0]) return print(`room: ${wss.room || '(none)'}`, 'info');
+    wss.room = rest[0];
+    await wssSavePrefs();
+    print(`room → ${wss.room}`, 'ok');
+    if (wss.socket && wss.socket.readyState === 1) {
+      print('reconnecting…', 'info');
+      await wssConnect(wss.room);
+    }
+    return;
+  }
+
+  if (sub === 'send' || sub === 'say' || sub === 'chat') {
+    // message = rest of raw line after first two tokens
+    const m = raw.match(/^(?:wss|net)\s+(?:send|say|chat)\s+([\s\S]+)$/i);
+    const msg = m ? m[1] : rest.join(' ');
+    if (!msg.trim()) return print('usage: wss send <message>', 'err');
+    try {
+      await wssSend(msg);
+    } catch (e) {
+      print(`wss send: ${e.message}`, 'err');
+    }
+    return;
+  }
+
+  if (sub === 'relay-code' || sub === 'worker' || sub === 'code') {
+    print('Cloudflare Worker + Durable Object relay (save as src/index.js, bind ROOMS):', 'info');
+    print(`/**
+ * Universal WSS Relay — Cloudflare Workers + Durable Objects
+ * Each path = isolated room. Opaque broadcast (text + binary).
+ * wrangler.toml: [[durable_objects.bindings]] name = "ROOMS" class_name = "Room"
+ */
+export class Room {
+  constructor(state, env) {
+    this.state = state;
+    this.sessions = new Map();
+  }
+  broadcast(data, except, echo) {
+    for (const [ws, meta] of this.sessions) {
+      if (ws === except && !echo) continue;
+      try { if (ws.readyState === 1) ws.send(data); } catch (_) {}
+    }
+  }
+  async fetch(request) {
+    const upgrade = request.headers.get("Upgrade");
+    if (upgrade !== "websocket") {
+      return new Response("Universal WSS Relay (Cloudflare)\nPath = room. ?presence=1 &echo=1 &max=N\n", {
+        status: 200, headers: { "content-type": "text/plain" },
+      });
+    }
+    const url = new URL(request.url);
+    const presence = url.searchParams.get("presence") === "1";
+    const echo = url.searchParams.get("echo") === "1";
+    const max = parseInt(url.searchParams.get("max") || "0", 10) || 0;
+    if (max > 0 && this.sessions.size >= max) return new Response("room full", { status: 503 });
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    server.accept();
+    const id = crypto.randomUUID().slice(0, 8);
+    this.sessions.set(server, { id, echo, presence });
+    try { server.send(JSON.stringify({ t: "_hello", id, n: this.sessions.size })); } catch (_) {}
+    if (presence) this.broadcast(JSON.stringify({ t: "_join", id, n: this.sessions.size }), server, false);
+    server.addEventListener("message", (event) => {
+      const meta = this.sessions.get(server);
+      this.broadcast(event.data, server, meta?.echo);
+    });
+    const leave = () => {
+      if (!this.sessions.has(server)) return;
+      const meta = this.sessions.get(server);
+      this.sessions.delete(server);
+      if (meta?.presence) this.broadcast(JSON.stringify({ t: "_leave", id: meta.id, n: this.sessions.size }), null, false);
+    };
+    server.addEventListener("close", leave);
+    server.addEventListener("error", leave);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+}
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname === "/" || url.pathname === "/health") {
+      return new Response("Universal WSS Relay — path = room\n", { headers: { "content-type": "text/plain" } });
+    }
+    const roomId = url.pathname.replace(/^\/+/, "") || "default";
+    const id = env.ROOMS.idFromName(roomId);
+    return env.ROOMS.get(id).fetch(request);
+  },
+};`, 'out');
+    print('Deploy with wrangler, then: wss relay wss://<worker>.workers.dev', 'ok');
+    return;
+  }
+
+  // bare "wss <message>" → treat as send if connected
+  if (wss.socket && wss.socket.readyState === 1 && args.length) {
+    try {
+      await wssSend(args.join(' '));
+    } catch (e) {
+      print(`wss: ${e.message}`, 'err');
+    }
+    return;
+  }
+
+  help();
+};
+
+cmds.history = async () => {
+  history.forEach((h, i) => print(` ${String(i+1).padStart(4)}  ${h}`, 'out'));
+};
+cmds.source = async (args) => {
+  if (!args[0]) return print('source: missing file', 'err');
+  const f = await fsRead(args[0]);
+  if (!f) return print('No such file', 'err');
+  const lines = (f.content || '').split('\n').filter(l => l.trim() && !l.trim().startsWith('#'));
+  for (const line of lines) {
+    print(`+ ${line}`, 'sys');
+    await execLine(line);
+  }
+};
+
+/* ---------- Minecraft HTML builds ---------- */
+const MC_RELEASE = 'https://github.com/kbsigmaboy67AtSchool/minecraft/releases/download/minecraft';
+const MC_VERSIONS = {
+  // sizes measured via HEAD Content-Length (Sep 2026)
+  '1.8':     { file: 'default.Xclounkit234X.MINECRAFT.1.8.html',     size: '15.1 MB' },
+  '1.12':    { file: 'default.Xclounkit234X.MINECRAFT.1.12.html',    size: '20.1 MB' },
+  '1.14.4':  { file: 'default.Xclounkit234X.MINECRAFT.1.14.4.html',  size: '35.2 MB' },
+  '1.16':    { file: 'default.Xclounkit234X.MINECRAFT.1.16.html',    size: '53.1 MB' },
+  '1.20.6':  { file: 'default.Xclounkit234X.MINECRAFT.1.20.6.html',  size: '55.6 MB' },
+  '1.21.11': { file: 'default.Xclounkit234X.MINECRAFT.1.21.11.html', size: '48.8 MB' },
+};
+
+function mcResolve(ver) {
+  if (!ver) return null;
+  const key = String(ver).replace(/^v/i, '');
+  if (MC_VERSIONS[key]) return { ver: key, ...MC_VERSIONS[key] };
+  // fuzzy: 1.14 → 1.14.4, 1.20 → 1.20.6, 1.21 → 1.21.11
+  const aliases = { '1.14': '1.14.4', '1.20': '1.20.6', '1.21': '1.21.11' };
+  if (aliases[key] && MC_VERSIONS[aliases[key]]) {
+    return { ver: aliases[key], ...MC_VERSIONS[aliases[key]] };
+  }
+  return null;
+}
+function mcUrl(meta) {
+  return `${MC_RELEASE}/${meta.file}`;
+}
+
+cmds.minecraft = cmds.mc = async (args) => {
+  const showHelp = () => {
+    printHtml(`<span style="color:var(--accent)">minecraft / mc</span> — HTML Minecraft builds (Xclounkit234X / kbsigmaboy67AtSchool)
+
+<span style="color:var(--cyan)">Usage</span>
+  minecraft                     list versions
+  minecraft --list
+  minecraft --download &lt;ver&gt;    browser-download the HTML file
+  minecraft --export &lt;ver&gt;      same as --download
+  minecraft --play &lt;ver&gt;        open the build in a new tab
+  minecraft --open &lt;ver&gt;        same as --play
+  minecraft --edit &lt;ver&gt; [path] fetch → save to FS → open Monaco
+  minecraft --nano &lt;ver&gt; [path] same as --edit
+  minecraft --url &lt;ver&gt;         print download URL only
+
+<span style="color:var(--cyan)">Versions</span>
+  1.8      15.1 MB
+  1.12     20.1 MB
+  1.14.4   35.2 MB
+  1.16     53.1 MB
+  1.20.6   55.6 MB
+  1.21.11  48.8 MB
+
+<span style="color:var(--yellow)">Note:</span> --edit pulls the full HTML into IndexedDB + memory.
+Prefer --download or --play for the bigger builds if storage is tight.`, 'info');
+  };
+
+  if (!args.length || args[0] === '--help' || args[0] === '-h' || args[0] === 'help') {
+    showHelp();
+    return;
+  }
+
+  // normalize flags: allow "minecraft download 1.12" as well as "minecraft --download 1.12"
+  let mode = null;
+  let ver = null;
+  let outPath = null;
+  const flags = {
+    list: ['--list', 'list', '-l'],
+    download: ['--download', 'download', '--export', 'export', '-d'],
+    play: ['--play', 'play', '--open', 'open', '-p'],
+    edit: ['--edit', 'edit', '--nano', 'nano', '-e'],
+    url: ['--url', 'url'],
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    let matched = false;
+    for (const [m, list] of Object.entries(flags)) {
+      if (list.includes(a)) {
+        mode = m;
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
+    if (!ver && /^\d/.test(a)) { ver = a; continue; }
+    if (ver && !outPath) { outPath = a; continue; }
+  }
+
+  if (!mode || mode === 'list') {
+    print('Available Minecraft HTML builds:', 'info');
+    for (const [v, meta] of Object.entries(MC_VERSIONS)) {
+      print(`  ${v.padEnd(8)}  ${meta.size.padStart(9)}  ${meta.file}`, 'out');
+    }
+    print('Example:  minecraft --download 1.12', 'info');
+    print('          minecraft --play 1.20.6', 'info');
+    return;
+  }
+
+  if (!ver) return print('minecraft: missing version (e.g. 1.12)', 'err');
+  const meta = mcResolve(ver);
+  if (!meta) {
+    print(`minecraft: unknown version "${ver}"`, 'err');
+    print('Known: ' + Object.keys(MC_VERSIONS).join(', '), 'info');
+    return;
+  }
+  const url = mcUrl(meta);
+
+  if (mode === 'url') {
+    print(url, 'ok');
+    return;
+  }
+
+  // Shared fetch helper — GitHub release assets often CORS-block browser fetch.
+  // Strategy: try fetch → blob; on failure fall back to navigation / instructions.
+  async function mcFetchBlob(meta, url) {
+    print(`fetching ${meta.file} (${meta.size})…`, 'info');
+    print(url, 'sys');
+    // Try direct fetch (works if CORS allows; GitHub often does NOT)
+    try {
+      const res = await fetch(url, { redirect: 'follow', mode: 'cors', credentials: 'omit', cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      const blob = await res.blob();
+      print(`received ${(blob.size / 1e6).toFixed(1)} MB`, 'ok');
+      return blob;
+    } catch (e) {
+      print(`direct fetch blocked or failed: ${e.message}`, 'warn');
+      // Try no-cors is useless for reading body. Fall through.
+      throw e;
+    }
+  }
+
+  function mcTriggerBlobDownload(blob, filename) {
+    const obj = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = obj;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(obj), 60_000);
+  }
+
+  function mcOpenUrl(url, label) {
+    print(`Opening ${label}…`, 'info');
+    print(url, 'sys');
+    const w = window.open(url, '_blank', 'noopener');
+    if (!w) {
+      print('Popup blocked. Copy the URL above and open it manually.', 'warn');
+      return false;
+    }
+    return true;
+  }
+
+  if (mode === 'play') {
+    // Navigate to the release asset. Browser follows GitHub → CDN redirects and runs/downloads the HTML.
+    if (mcOpenUrl(url, `Minecraft ${meta.ver} (${meta.size})`)) {
+      print(`Minecraft ${meta.ver} opened in a new tab`, 'ok');
+      print('If the browser downloads instead of playing, open the downloaded .html file locally.', 'info');
+    }
+    return;
+  }
+
+  if (mode === 'download') {
+    print(`Downloading Minecraft ${meta.ver} (${meta.size})…`, 'info');
+    try {
+      const blob = await mcFetchBlob(meta, url);
+      mcTriggerBlobDownload(blob, meta.file);
+      print(`Download started: ${meta.file}`, 'ok');
+    } catch (e) {
+      // CORS / network failure — open the real download URL so the browser handles it
+      print('Fetch blocked by CORS (normal for GitHub release assets).', 'warn');
+      print('Falling back to browser navigation — your browser will download the file.', 'info');
+      if (mcOpenUrl(url, meta.file)) {
+        print('If it only previews in-tab: right-click → Save As, or check Downloads.', 'info');
+      }
+    }
+    return;
+  }
+
+  if (mode === 'edit') {
+    const dest = outPath
+      ? norm(outPath)
+      : norm(`/home/nixl/minecraft/MC_${meta.ver}.html`);
+    print(`Fetching Minecraft ${meta.ver} (${meta.size}) into FS → ${dest}`, 'info');
+    try {
+      const blob = await mcFetchBlob(meta, url);
+      const text = await blob.text();
+      print(`writing ${(text.length / 1e6).toFixed(1)} MB to FS…`, 'info');
+      await fsWrite(dest, text, { type: 'file' });
+      print(`saved ${dest}`, 'ok');
+      // Monaco struggles past ~5–10MB of text; use stub for large files
+      if (text.length > 5_000_000) {
+        print('File is large — not loading full body into Monaco (would freeze the tab).', 'warn');
+        print(`Saved to FS. Use:  minecraft --play ${meta.ver}  or open ${dest} outside NiXl.`, 'info');
+        const stub = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>MC ${meta.ver}</title></head>
+<body style="background:#111;color:#eee;font-family:sans-serif;padding:2rem">
+<h1>Minecraft ${meta.ver}</h1>
+<p>Full HTML is saved at <code>${dest}</code> (${(text.length/1e6).toFixed(1)} MB).</p>
+<p>Open that file in a normal browser tab for best results.</p>
+<p><a href="${url}" target="_blank" rel="noopener" style="color:#67e8f9">Open release URL</a></p>
+</body></html>`;
+        openPreview(stub, `MC ${meta.ver} stub`);
+      } else {
+        openEditor(dest, text);
+        print(`opened ${dest} in Monaco`, 'ok');
+      }
+    } catch (e) {
+      print(`minecraft --edit failed: ${e.message}`, 'err');
+      print('GitHub release assets usually block cross-origin fetch (CORS).', 'warn');
+      print(`Workaround:  minecraft --download ${meta.ver}  then open the file from disk,`, 'info');
+      print(`or:          minecraft --play ${meta.ver}`, 'info');
+      // still open the URL so user isn't stuck
+      mcOpenUrl(url, meta.file);
+    }
+    return;
+  }
+
+  showHelp();
+};
+
+/* ========== Custom command system ========== */
+let customCmds = {}; // name -> { name, help, code, delimiter, sourceUrl, updated }
+
+async function loadCustomCmds() {
+  const data = await metaGet('customCmds');
+  if (data && typeof data === 'object') customCmds = data;
+  else customCmds = {};
+}
+async function saveCustomCmds() {
+  await metaSet('customCmds', customCmds);
+}
+
+function getCmdApi() {
+  return {
+    print,
+    printHtml,
+    cwd: () => cwd,
+    setCwd: async (p) => { cwd = norm(p); updatePrompt(); await metaSet('cwd', cwd); },
+    fs: { read: fsRead, write: fsWrite, list: fsList, rm: fsRm, all: fsAll, exists: async p => !!(await fsRead(p)) },
+    aes: { encrypt: aesEncrypt, decrypt: aesDecrypt, gen: aesGenerate, key: () => aesKeyRaw },
+    meta: { get: metaGet, set: metaSet },
+    evalJS,
+    evaluateMath,
+    openPreview,
+    openEditor,
+    fetch: async (url, opts) => {
+      const res = await fetch(url, opts);
+      const text = await res.text();
+      return { status: res.status, ok: res.ok, headers: Object.fromEntries(res.headers.entries()), text, json: () => JSON.parse(text) };
+    },
+    argsParse: parseLine,
+    sleep: (ms) => new Promise(r => setTimeout(r, ms)),
+    last: () => window.__nixl_last,
+  };
+}
+
+async function runCustomCmd(name, args, raw) {
+  const def = customCmds[name];
+  if (!def) return false;
+
+  // --help
+  if (args[0] === '--help' || args[0] === '-h') {
+    printHtml(`<span style="color:var(--accent)">${esc(name)}</span> — custom command`, 'info');
+    print(def.help || '(no help text)', 'out');
+    if (def.sourceUrl) print(`source: ${def.sourceUrl}`, 'info');
+    if (def.delimiter && def.delimiter !== ' ') print(`delimiter: ${JSON.stringify(def.delimiter)}`, 'info');
+    return true;
+  }
+
+  // optional live reload from URL
+  let code = def.code || '';
+  if (def.sourceUrl) {
+    try {
+      print(`fetching ${def.sourceUrl} …`, 'info');
+      const res = await fetch(def.sourceUrl, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      code = await res.text();
+      def.code = code;
+      def.updated = Date.now();
+      await saveCustomCmds();
+    } catch (e) {
+      print(`cmd-load warning: could not refresh from URL (${e.message}) — using cached body`, 'warn');
+    }
+  }
+
+  // split rest of line from command name
+  const delim = (def.delimiter != null && def.delimiter !== '') ? def.delimiter : ' ';
+  let rest = '';
+  if (delim === ' ') {
+    // default: everything after first token
+    const m = raw.match(/^\S+\s*([\s\S]*)$/);
+    rest = m ? m[1] : '';
+  } else {
+    const idx = raw.indexOf(delim);
+    if (idx >= 0) rest = raw.slice(idx + delim.length);
+    else rest = '';
+  }
+
+  const api = getCmdApi();
+  try {
+    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+    // User code is the body of an async function:
+    //   async (args, raw, rest, api) => { ... }
+    // or a full function body that uses those names.
+    let body = code.trim();
+    // If user provided a full arrow/function, wrap carefully; otherwise treat as body.
+    let fn;
+    if (/^(async\s*)?(function|\()/.test(body) || body.startsWith('async ')) {
+      // evaluate to a function value
+      fn = new Function('api', `"use strict"; return (${body});`)(api);
+    } else {
+      fn = new AsyncFunction('args', 'raw', 'rest', 'api', `"use strict";\n${body}`);
+    }
+    const result = await fn(args, raw, rest, api);
+    if (result !== undefined) {
+      print(typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result), 'ok');
+      window.__nixl_last = result;
+    }
+  } catch (e) {
+    print(`${name}: ${e.message}`, 'err');
+    if (e.stack) print(e.stack.split('\n').slice(0, 4).join('\n'), 'err');
+  }
+  return true;
+}
+
+cmds['cmd-guide'] = async () => {
+  printHtml(`<span style="color:var(--accent)">NiXl Custom Command Guide</span>
+
+<span style="color:var(--cyan)">1. Create a command</span>
+  cmd-set greet print("Hello, " + (rest || "world") + "!")
+  greet Alice
+  → Hello, Alice!
+
+  Or multi-line: open editor, write the body, then:
+  cmd-add mytool
+
+<span style="color:var(--cyan)">2. Function signature</span>
+  Your code runs as:
+    async (args, raw, rest, api) => { ... }
+
+  args  — array of tokens after the command name (space-split)
+  raw   — full original line
+  rest  — everything after the command name (respects custom delimiter)
+  api   — toolbox (see below)
+
+  You can also paste a full arrow function:
+    cmd-set double async (args) => Number(args[0]) * 2
+
+<span style="color:var(--cyan)">3. api object</span>
+  api.print(text, cls?)        // cls: out|ok|err|warn|info|sys
+  api.printHtml(html, cls?)
+  api.cwd() / api.setCwd(path)
+  api.fs.read/write/list/rm/all/exists
+  api.aes.encrypt/decrypt/gen/key
+  api.meta.get/set
+  api.evalJS(code)
+  api.evaluateMath(expr)
+  api.openPreview(html, title?)
+  api.openEditor(path, content?)
+  api.fetch(url, opts?) → { status, ok, text, json(), headers }
+  api.argsParse(line) → tokens
+  api.sleep(ms)
+  api.last()                   // last calc/result value
+
+<span style="color:var(--cyan)">4. Help text</span>
+  cmd-set notes --help "quick scratch notes"
+  notes --help
+
+  Or after creating:
+  cmd-help notes
+
+<span style="color:var(--cyan)">5. Custom delimiter</span>
+  By default rest is split on the first space.
+  Set a custom delimiter (e.g. :: or |):
+  cmd-set say --delim "::" print(rest)
+  say :: hello world
+  → hello world
+
+<span style="color:var(--cyan)">6. Load body from URL (any scheme)</span>
+  cmd-load weather https://example.com/weather.js
+  cmd-load localtool data:text/javascript,print("hi "+rest)
+  cmd-reload weather          // re-fetch
+
+  On every run of a URL-backed command, NiXl re-fetches (cache: no-store)
+  so the remote script can update constantly. Falls back to last cached body
+  if the fetch fails. Supports http(s), data:, blob:, and anything fetch() allows.
+
+<span style="color:var(--cyan)">7. Persistence</span>
+  All custom commands are stored in IndexedDB (meta key customCmds).
+  cmd-export → downloads JSON
+  cmd-import → paste/load JSON (or from a file path in the FS)
+
+<span style="color:var(--cyan)">8. Examples</span>
+  cmd-set hi print("hi " + (args[0] || "there"))
+  cmd-set add print(Number(args[0]) + Number(args[1]))
+  cmd-set upper print(rest.toUpperCase())
+  cmd-set joke async (a,r,rest,api) => {
+    const res = await api.fetch("https://official-joke-api.appspot.com/random_joke");
+    const j = res.json();
+    api.print(j.setup); api.print(j.punchline, "ok");
+  }
+`, 'info');
+};
+
+cmds['cmd-list'] = async () => {
+  const names = Object.keys(customCmds).sort();
+  if (!names.length) return print('(no custom commands — try cmd-guide)', 'info');
+  for (const n of names) {
+    const d = customCmds[n];
+    const flag = d.sourceUrl ? ' [url]' : '';
+    print(`${n}${flag}  —  ${(d.help || '').slice(0, 60)}`, 'out');
+  }
+};
+
+cmds['cmd-help'] = async (args) => {
+  if (!args[0]) return print('usage: cmd-help <name>', 'err');
+  const d = customCmds[args[0]];
+  if (!d) return print(`no custom command: ${args[0]}`, 'err');
+  printHtml(`<span style="color:var(--accent)">${esc(args[0])}</span>`, 'info');
+  print(d.help || '(no help text)', 'out');
+  if (d.sourceUrl) print(`sourceUrl: ${d.sourceUrl}`, 'info');
+  if (d.delimiter && d.delimiter !== ' ') print(`delimiter: ${JSON.stringify(d.delimiter)}`, 'info');
+  print('--- body ---', 'sys');
+  print(d.code || '(empty)', 'out');
+};
+
+cmds['cmd-rm'] = async (args) => {
+  if (!args[0]) return print('usage: cmd-rm <name>', 'err');
+  if (!customCmds[args[0]]) return print(`no such command: ${args[0]}`, 'err');
+  delete customCmds[args[0]];
+  await saveCustomCmds();
+  print(`removed custom command: ${args[0]}`, 'ok');
+};
+
+cmds['cmd-set'] = async (args, raw) => {
+  // cmd-set <name> [--help "text"] [--delim "x"] <code...>
+  if (!args[0]) return print('usage: cmd-set <name> [--help "…"] [--delim "…"] <js body>', 'err');
+  const name = args[0];
+  if (cmds[name] && !customCmds[name]) return print(`cannot override builtin: ${name}`, 'err');
+  if (!/^[a-zA-Z_][\w-]*$/.test(name)) return print('invalid name (use letters, numbers, _ -)', 'err');
+
+  let help = '';
+  let delim = ' ';
+  let bodyArgs = args.slice(1);
+  // parse optional flags
+  while (bodyArgs.length) {
+    if (bodyArgs[0] === '--help' && bodyArgs[1] != null) {
+      help = bodyArgs[1];
+      bodyArgs = bodyArgs.slice(2);
+      continue;
+    }
+    if (bodyArgs[0] === '--delim' && bodyArgs[1] != null) {
+      delim = bodyArgs[1];
+      bodyArgs = bodyArgs.slice(2);
+      continue;
+    }
+    break;
+  }
+  // reconstruct code from remaining raw line (preserve spaces)
+  let code = bodyArgs.join(' ');
+  // better: take from raw after name and flags
+  if (!code.trim()) {
+    // try editor buffer
+    if (monacoEditor && currentEditPath) {
+      code = monacoEditor.getValue();
+      print('using current editor buffer as body', 'info');
+    } else {
+      return print('cmd-set: missing JS body (or open editor first)', 'err');
+    }
+  }
+
+  customCmds[name] = {
+    name,
+    help: help || customCmds[name]?.help || '',
+    code,
+    delimiter: delim,
+    sourceUrl: customCmds[name]?.sourceUrl || null,
+    updated: Date.now()
+  };
+  await saveCustomCmds();
+  print(`custom command saved: ${name}`, 'ok');
+  print(`try: ${name} --help`, 'info');
+};
+
+cmds['cmd-add'] = async (args) => {
+  // interactive-ish: name required; body from editor or prompt flow
+  const name = args[0];
+  if (!name) return print('usage: cmd-add <name>   (body from current Monaco buffer)', 'err');
+  if (!monacoEditor) {
+    openEditor(`/home/nixl/cmds/${name}.js`, `// custom command: ${name}\n// async (args, raw, rest, api) => { ... }\nprint("hello from ${name}, rest=" + rest);\n`);
+    print('Editor opened with a template. Write your body, Save, then run: cmd-add ' + name, 'info');
+    return;
+  }
+  const code = monacoEditor.getValue();
+  customCmds[name] = {
+    name,
+    help: customCmds[name]?.help || '',
+    code,
+    delimiter: customCmds[name]?.delimiter || ' ',
+    sourceUrl: null,
+    updated: Date.now()
+  };
+  await saveCustomCmds();
+  // also save a copy into FS for convenience
+  await fsWrite(`/home/nixl/cmds/${name}.js`, code);
+  print(`custom command saved: ${name}`, 'ok');
+};
+
+cmds['cmd-load'] = async (args) => {
+  // cmd-load <name> <url> [--help "…"] [--delim "…"]
+  if (args.length < 2) return print('usage: cmd-load <name> <url> [--help "…"] [--delim "…"]', 'err');
+  const name = args[0];
+  const url = args[1];
+  if (cmds[name] && !customCmds[name]) return print(`cannot override builtin: ${name}`, 'err');
+  let help = '';
+  let delim = ' ';
+  let rest = args.slice(2);
+  while (rest.length) {
+    if (rest[0] === '--help' && rest[1] != null) { help = rest[1]; rest = rest.slice(2); continue; }
+    if (rest[0] === '--delim' && rest[1] != null) { delim = rest[1]; rest = rest.slice(2); continue; }
+    break;
+  }
+  print(`loading ${url} …`, 'info');
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const code = await res.text();
+    customCmds[name] = { name, help, code, delimiter: delim, sourceUrl: url, updated: Date.now() };
+    await saveCustomCmds();
+    print(`loaded & saved: ${name}  (${code.length} bytes)`, 'ok');
+  } catch (e) {
+    print(`cmd-load failed: ${e.message}`, 'err');
+  }
+};
+
+cmds['cmd-reload'] = async (args) => {
+  if (!args[0]) return print('usage: cmd-reload <name>', 'err');
+  const d = customCmds[args[0]];
+  if (!d) return print('no such command', 'err');
+  if (!d.sourceUrl) return print('command has no sourceUrl — use cmd-load first', 'err');
+  await cmds['cmd-load']([args[0], d.sourceUrl, ...(d.help ? ['--help', d.help] : []), ...(d.delimiter && d.delimiter !== ' ' ? ['--delim', d.delimiter] : [])]);
+};
+
+cmds['cmd-export'] = async () => {
+  const blob = new Blob([JSON.stringify(customCmds, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'nixl-custom-cmds.json';
+  a.click();
+  print('exported custom commands', 'ok');
+};
+
+cmds['cmd-import'] = async (args) => {
+  if (args[0]) {
+    // from FS path
+    const f = await fsRead(args[0]);
+    if (!f) return print('file not found', 'err');
+    try {
+      const data = JSON.parse(f.content);
+      customCmds = { ...customCmds, ...data };
+      await saveCustomCmds();
+      print(`imported ${Object.keys(data).length} command(s)`, 'ok');
+    } catch (e) {
+      print('invalid JSON: ' + e.message, 'err');
+    }
+    return;
+  }
+  // file picker
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'application/json,.json';
+  inp.onchange = async () => {
+    const file = inp.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      customCmds = { ...customCmds, ...data };
+      await saveCustomCmds();
+      print(`imported ${Object.keys(data).length} command(s)`, 'ok');
+    } catch (e) {
+      print('import failed: ' + e.message, 'err');
+    }
+  };
+  inp.click();
+};
+
+/* ---------- JS eval ---------- */
+async function evalJS(code, source = '<stdin>') {
+  try {
+    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+    // inject useful helpers
+    const fn = new AsyncFunction('print', 'fs', 'aes', 'cwd', `
+      "use strict";
+      const ls = async (p) => print((await fs.list(p||cwd)).map(i=>i.name).join('  '));
+      const cat = async (p) => { const f = await fs.read(p); if(f) print(f.content); };
+      const write = async (p,c) => fs.write(p,c);
+      ${code}
+    `);
+    const fsApi = {
+      read: fsRead, write: fsWrite, list: fsList, rm: fsRm, all: fsAll
+    };
+    const aesApi = { encrypt: aesEncrypt, decrypt: aesDecrypt, gen: aesGenerate };
+    const result = await fn(print, fsApi, aesApi, cwd);
+    if (result !== undefined) print(typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result), 'ok');
+  } catch (e) {
+    print(`${e.name}: ${e.message}`, 'err');
+    if (e.stack) print(e.stack.split('\n').slice(0,3).join('\n'), 'err');
+  }
+}
+
+/* ---------- Monaco ---------- */
+function initMonaco(cb) {
+  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' } });
+  require(['vs/editor/editor.main'], () => {
+    monaco.editor.defineTheme('nixl', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        { token: 'comment', foreground: '6b7280' },
+        { token: 'string', foreground: 'a78bfa' },
+        { token: 'keyword', foreground: '67e8f9' },
+        { token: 'number', foreground: '4ade80' },
+      ],
+      colors: {
+        'editor.background': '#0d0d10',
+        'editor.foreground': '#d4d4d8',
+        'editorLineNumber.foreground': '#3f3f46',
+        'editor.selectionBackground': '#27272a',
+        'editorCursor.foreground': '#67e8f9',
+      }
+    });
+    monacoEditor = monaco.editor.create($('#monaco'), {
+      value: '',
+      language: 'javascript',
+      theme: 'nixl',
+      fontFamily: 'JetBrains Mono, monospace',
+      fontSize: 13,
+      minimap: { enabled: false },
+      automaticLayout: true,
+      scrollBeyondLastLine: false,
+      tabSize: 2,
+      padding: { top: 8 }
+    });
+    cb && cb();
+  });
+}
+
+function openEditor(path, content) {
+  currentEditPath = path;
+  $('#ed-path').textContent = path;
+  $('#main').classList.add('split');
+  $('#btn-editor').classList.add('active');
+  if (!monacoEditor) {
+    initMonaco(() => {
+      monacoEditor.setValue(content);
+      setLang(path);
+    });
+  } else {
+    monacoEditor.setValue(content);
+    setLang(path);
+  }
+}
+function setLang(path) {
+  if (!monacoEditor) return;
+  const ext = path.split('.').pop().toLowerCase();
+  const map = { js: 'javascript', html: 'html', htm: 'html', css: 'css', json: 'json', md: 'markdown', py: 'python', sh: 'shell', bash: 'shell' };
+  monaco.editor.setModelLanguage(monacoEditor.getModel(), map[ext] || 'plaintext');
+}
+async function saveEditor() {
+  if (!monacoEditor || !currentEditPath) return;
+  const val = monacoEditor.getValue();
+  await fsWrite(currentEditPath, val);
+  print(`saved ${currentEditPath}`, 'ok');
+}
+function closeEditor() {
+  $('#main').classList.remove('split');
+  $('#btn-editor').classList.remove('active');
+  currentEditPath = null;
+}
+
+function openPreview(html, title) {
+  $('#preview-frame').srcdoc = html;
+  $('#prev-title').textContent = title || 'preview';
+  $('#preview-pane').classList.add('on');
+  $('#btn-preview').classList.add('active');
+}
+function closePreview() {
+  $('#preview-pane').classList.remove('on');
+  $('#btn-preview').classList.remove('active');
+  $('#preview-frame').srcdoc = '';
+}
+
+/* ---------- Exec ---------- */
+async function execLine(raw) {
+  let line = raw.trim();
+  if (!line) return;
+  history.push(line);
+  if (history.length > 500) history.shift();
+  histIdx = history.length;
+  await metaSet('history', history);
+  print(`nixl# ${line}`, 'cmd');
+
+  // global --copy flag (anywhere): copy the next main result
+  copyNext = false;
+  if (/(?:^|\s)--copy\b/.test(line)) {
+    copyNext = true;
+    line = line.replace(/(?:^|\s)--copy\b/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  // bare "--copy" or "copy" already handled as commands
+
+  const tokens = parseLine(line);
+  const name = tokens[0];
+  const args = tokens.slice(1);
+
+  if (cmds[name]) {
+    try {
+      await cmds[name](args, line);
+    } catch (e) {
+      print(`${name}: ${e.message}`, 'err');
+    }
+  } else if (customCmds[name]) {
+    await runCustomCmd(name, args, line);
+  } else {
+    // maybe a file path to run?
+    const f = await fsRead(name);
+    if (f) {
+      if (name.endsWith('.js')) await evalJS(f.content, name);
+      else if (name.endsWith('.html') || name.endsWith('.htm')) openPreview(f.content, name);
+      else print(f.content, 'out');
+    } else {
+      print(`nixl: ${name}: command not found. Type help  ·  cmd-guide for custom cmds`, 'err');
+    }
+  }
+}
+
+/* ---------- Input handling ---------- */
+cmdEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const v = cmdEl.value;
+    cmdEl.value = '';
+    execLine(v);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (histIdx > 0) { histIdx--; cmdEl.value = history[histIdx] || ''; }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (histIdx < history.length - 1) { histIdx++; cmdEl.value = history[histIdx] || ''; }
+    else { histIdx = history.length; cmdEl.value = ''; }
+  } else if (e.key === 'Tab') {
+    e.preventDefault();
+    const partial = cmdEl.value.trim();
+    const names = [...Object.keys(cmds), ...Object.keys(customCmds)];
+    const m = names.find(n => n.startsWith(partial));
+    if (m) cmdEl.value = m + ' ';
+  } else if (e.key === 'l' && e.ctrlKey) {
+    e.preventDefault();
+    termEl.innerHTML = '';
+  } else if (e.key === 'c' && e.ctrlKey) {
+    // soft interrupt
+    print('^C', 'warn');
+    cmdEl.value = '';
+  }
+});
+
+/* UI buttons */
+$('#btn-editor').onclick = () => {
+  if ($('#main').classList.contains('split')) closeEditor();
+  else {
+    if (!currentEditPath) openEditor('/tmp/scratch.js', '// scratch\nconsole.log("hello from NiXl");\n');
+    else $('#main').classList.add('split');
+  }
+};
+$('#btn-preview').onclick = () => {
+  if ($('#preview-pane').classList.contains('on')) closePreview();
+  else openPreview('<h1 style="color:#67e8f9;font-family:sans-serif;padding:2rem">NiXl Preview</h1><p style="color:#aaa">Run an .html file or use html command</p>', 'empty');
+};
+$('#btn-clear').onclick = () => { termEl.innerHTML = ''; };
+$('#ed-save').onclick = saveEditor;
+$('#ed-run').onclick = async () => {
+  if (!monacoEditor) return;
+  await saveEditor();
+  if (currentEditPath) await cmds.run([currentEditPath]);
+};
+$('#ed-close').onclick = closeEditor;
+$('#prev-close').onclick = closePreview;
+
+/* ---------- Seed + boot ---------- */
+async function seed() {
+  const existing = await fsAll();
+  if (existing.length > 0) return;
+
+  await fsWrite('/home/nixl/.dir', '', { type: 'dir' });
+  await fsWrite('/home/nixl/welcome.txt', `Welcome to NiXl Engine
+======================
+Type: help
+Try:  ls -l
+      edit hello.js
+      run hello.js
+      aes-gen
+      aes-enc "secret message"
+`);
+
+  await fsWrite('/home/nixl/hello.js', `// NiXl hello
+print("Hello from NiXl JS runtime");
+print("cwd is", cwd);
+const list = await fs.list(cwd);
+print("files:", list.map(i => i.name).join(", "));
+`);
+
+  await fsWrite('/home/nixl/games/snake.html', `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Snake</title>
+<style>
+body{margin:0;background:#020203;color:#d4d4d8;font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}
+h1{color:#67e8f9;text-shadow:0 0 20px rgba(103,232,249,.4)}
+canvas{border:1px solid #1c1c22;background:#0a0a0c}
+</style></head><body>
+<h1>Snake</h1>
+<canvas id="c" width="400" height="400"></canvas>
+<div style="margin-top:8px;color:#71717a">Score: <span id="s">0</span></div>
+<script>
+const ctx=c.getContext('2d'),G=20;
+let snake=[{x:10,y:10}],dir={x:1,y:0},food={x:15,y:15},score=0,dead=false;
+document.onkeydown=e=>{
+  if(e.key==='ArrowUp'&&dir.y===0)dir={x:0,y:-1};
+  if(e.key==='ArrowDown'&&dir.y===0)dir={x:0,y:1};
+  if(e.key==='ArrowLeft'&&dir.x===0)dir={x:-1,y:0};
+  if(e.key==='ArrowRight'&&dir.x===0)dir={x:1,y:0};
+};
+function loop(){
+  if(dead)return;
+  const h={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  if(h.x<0||h.x>=20||h.y<0||h.y>=20||snake.some(p=>p.x===h.x&&p.y===h.y)){dead=true;alert('Game Over '+score);return;}
+  snake.unshift(h);
+  if(h.x===food.x&&h.y===food.y){score++;s.textContent=score;food={x:Math.random()*20|0,y:Math.random()*20|0};}
+  else snake.pop();
+  ctx.fillStyle='#020203';ctx.fillRect(0,0,400,400);
+  ctx.fillStyle='#67e8f9';snake.forEach((p,i)=>{ctx.globalAlpha=1-i*0.04;ctx.fillRect(p.x*G,p.y*G,G-1,G-1);});
+  ctx.globalAlpha=1;ctx.fillStyle='#a78bfa';ctx.fillRect(food.x*G,food.y*G,G-1,G-1);
+  setTimeout(loop,85);
+}
+loop();
+<\/script></body></html>`);
+
+  await fsWrite('/home/nixl/bin/hello', `#!/usr/bin/env nixl
+echo "Hello from a sourced script"
+ls -l
+`, { mode: '755' });
+
+  print('Seeded /home/nixl with starter files', 'sys');
+}
+
+$('#enter').onclick = async () => {
+  $('#boot').style.display = 'none';
+  $('#app').classList.add('on');
+  try {
+    await openDB();
+    // restore
+    const savedCwd = await metaGet('cwd');
+    if (savedCwd) cwd = savedCwd;
+    const savedHist = await metaGet('history');
+    if (Array.isArray(savedHist)) history = savedHist;
+    const savedKey = await metaGet('aesKeyRaw');
+    if (savedKey) {
+      try { await aesImport(savedKey); print('Restored AES key from previous session', 'sys'); } catch {}
+    }
+    await loadCustomCmds();
+    await wssLoadPrefs();
+    updatePrompt();
+    print('NiXl Engine v2 online', 'ok');
+    print('IndexedDB · AES-GCM · Monaco · bash · custom cmds · WSS net', 'info');
+    print('Type help  ·  wss help  ·  cmd-guide  ·  Ctrl+L clear', 'info');
+    if (wss.relayBase) print(`WSS relay: ${wss.relayBase}`, 'sys');
+    const nCustom = Object.keys(customCmds).length;
+    if (nCustom) print(`Restored ${nCustom} custom command(s)`, 'sys');
+    await seed();
+    cmdEl.focus();
+  } catch (e) {
+    print('Boot failed: ' + e.message, 'err');
+  }
+};
+
+// keep focus
+document.addEventListener('click', e => {
+  if (!e.target.closest('#editor-pane') && !e.target.closest('#preview-pane') && !e.target.closest('button')) {
+    cmdEl.focus();
+  }
+});
+</script>
+</body>
+</html>
